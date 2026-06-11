@@ -5,9 +5,8 @@ import {
   FiArrowRight,
   FiBriefcase,
   FiCheckCircle,
-  FiChevronDown,
   FiExternalLink,
-  FiInfo,
+  FiFilter,
   FiInstagram,
   FiLinkedin,
   FiMapPin,
@@ -53,16 +52,21 @@ export function HomePage() {
 
       <main className="mx-auto grid w-full max-w-[1180px] gap-7 px-4 py-8 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm shadow-blue-100/70">
+          <div className="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm shadow-blue-100/60">
             <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 px-5 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">
-                Job controls
-              </p>
-              <h2 className="mt-1 text-lg font-black text-slate-950">Refine matches</h2>
+              <div className="flex items-center gap-3">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600 shadow-sm ring-1 ring-blue-100">
+                  <FiFilter className="h-4 w-4" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">
+                    Filters
+                  </p>
+                  <h2 className="mt-0.5 text-base font-black text-slate-950">Refine matches</h2>
+                </div>
+              </div>
             </div>
-            <div className="space-y-5 p-4">
-              <SearchJobsCard />
-              <QuickTip />
+            <div className="space-y-3 p-3.5">
               <FilterBox
                 title="Filter by status"
                 items={["Undecided (15)", "Interested (14)", "Not Interested (1)"]}
@@ -88,7 +92,7 @@ export function HomePage() {
               />
             </div>
           </div>
-          <PromoCards />
+          <FollowUsCard />
         </aside>
 
         <section className="space-y-5">
@@ -107,46 +111,6 @@ export function HomePage() {
   );
 }
 
-function QuickTip() {
-  return (
-    <section className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-      <div className="flex items-center gap-3">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-sm font-black text-blue-700">
-          <FiInfo className="h-4 w-4" aria-hidden />
-        </span>
-        <h2 className="text-base font-bold text-slate-900">Quick tip</h2>
-      </div>
-      <p className="mt-4 text-xs leading-6 text-slate-600">
-        Since not all companies will go ahead, we encourage you to apply to several
-        companies.
-      </p>
-      <p className="mt-4 text-xs leading-6 text-slate-600">
-        However, avoid applying if you don&apos;t want to interview, as any interview
-        backouts will be shown to other companies!
-      </p>
-    </section>
-  );
-}
-
-function SearchJobsCard() {
-  return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-4">
-      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">
-        Explore jobs
-      </p>
-      <button
-        className="mt-3 flex w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-blue-200 hover:bg-blue-50"
-        type="button"
-      >
-        <span>Search other jobs</span>
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-white text-xs text-blue-700 shadow-sm">
-          <FiChevronDown className="h-3.5 w-3.5" aria-hidden />
-        </span>
-      </button>
-    </section>
-  );
-}
-
 function FilterBox({
   title,
   items,
@@ -157,19 +121,19 @@ function FilterBox({
   radio?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-        <span className="h-2 w-2 rounded-full bg-blue-500" />
+    <section className="rounded-lg border border-blue-100 bg-white p-3.5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-black text-slate-900">{title}</h2>
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {items.map((item, index) => (
           <label
             key={item}
-            className={`flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-xs transition ${
+            className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition ${
               index === 0
-                ? "bg-blue-50 font-semibold text-blue-800"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                ? "bg-blue-50 font-bold text-blue-800 ring-1 ring-blue-100"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
             <input
@@ -186,51 +150,27 @@ function FilterBox({
   );
 }
 
-function PromoCards() {
+function FollowUsCard() {
   return (
-    <div className="space-y-4">
-      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm shadow-blue-100/60">
-        <div className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#38bdf8] px-5 py-5 text-white">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-100">
-            Online event
-          </p>
-          <h2 className="mt-3 text-xl font-black leading-tight">UX Design Hacks</h2>
-          <span className="mt-4 inline-flex rounded-full bg-white/18 px-3 py-1 text-[10px] font-bold uppercase">
-            Webinar recording
-          </span>
-        </div>
-        <p className="px-5 py-4 text-xs leading-5 text-slate-600">
-          Learn practical UX methods by watching this webinar recording.
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">
-          From our blog
-        </p>
-        <div className="mt-4 h-24 rounded-xl bg-[linear-gradient(135deg,#dbeafe,#93c5fd,#2563eb)]" />
-        <h2 className="mt-4 text-sm font-bold leading-6 text-slate-900">
-          Salary Negotiation 101: The Secret to Getting the Salary You Ask
-        </h2>
-      </section>
-
-      <section className="rounded-2xl border border-blue-100 bg-white p-5 text-center shadow-sm shadow-blue-100/60">
-        <h2 className="text-base font-black text-slate-900">Follow Us</h2>
-        <p className="mt-3 text-xs leading-5 text-slate-500">
-          Be the first to know about roles at top companies and exclusive events.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700">
-            <FiLinkedin className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-            LinkedIn
-          </button>
-          <button className="rounded-lg bg-sky-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-600">
-            <FiInstagram className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-            Instagram
-          </button>
-        </div>
-      </section>
-    </div>
+    <section className="rounded-lg border border-blue-100 bg-white p-5 text-center shadow-sm shadow-blue-100/60">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+        Stay connected
+      </p>
+      <h2 className="mt-1 text-base font-black text-slate-950">Follow Us</h2>
+      <p className="mt-3 text-xs leading-5 text-slate-500">
+        Get hiring updates, career events and new opportunities first.
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button className="inline-flex h-10 items-center justify-center rounded-md bg-[#0a66c2] px-3 text-xs font-bold text-white transition hover:bg-[#084e96]">
+          <FiLinkedin className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          LinkedIn
+        </button>
+        <button className="inline-flex h-10 items-center justify-center rounded-md bg-sky-500 px-3 text-xs font-bold text-white transition hover:bg-sky-600">
+          <FiInstagram className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          Instagram
+        </button>
+      </div>
+    </section>
   );
 }
 
