@@ -47,29 +47,29 @@ export function HomePage() {
   }, [selectedJob]);
 
   return (
-    <div className="min-h-screen bg-transparent text-[#333b48]">
+    <div className="min-h-screen bg-transparent text-[#2f3747]">
       <DashboardHeader />
 
-      <main className="mx-auto grid w-full max-w-[1180px] gap-7 px-4 py-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <main className="mx-auto grid w-full max-w-[1180px] gap-5 px-3 py-5 sm:px-4 sm:py-7 lg:grid-cols-[252px_minmax(0,1fr)]">
         <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <div className="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm shadow-blue-100/60">
-            <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 px-5 py-4">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
+            <div className="border-b border-slate-100 bg-white px-4 py-4 sm:px-5">
               <div className="flex items-center gap-3">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600 shadow-sm ring-1 ring-blue-100">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-slate-200">
                   <FiFilter className="h-4 w-4" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
                     Filters
                   </p>
-                  <h2 className="mt-0.5 text-base font-black text-slate-950">Refine matches</h2>
+                  <h2 className="mt-0.5 text-base font-bold text-slate-950">Refine matches</h2>
                 </div>
               </div>
             </div>
             <div className="space-y-3 p-3.5">
               <FilterBox
                 title="Filter by status"
-                items={["Undecided (15)", "Interested (14)", "Not Interested (1)"]}
+                items={["Undecided (15)", "Interested (14)"]}
                 radio
               />
               <FilterBox
@@ -95,7 +95,7 @@ export function HomePage() {
           <FollowUsCard />
         </aside>
 
-        <section className="space-y-5">
+        <section className="space-y-3.5">
           {jobs.map((job) => (
             <JobCard key={job.id} job={job} onView={() => setSelectedJob(job)} />
           ))}
@@ -121,10 +121,10 @@ function FilterBox({
   radio?: boolean;
 }) {
   return (
-    <section className="rounded-lg border border-blue-100 bg-white p-3.5">
+    <section className="rounded-lg border border-slate-100 bg-white p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-black text-slate-900">{title}</h2>
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+        <h2 className="text-[13px] font-bold text-slate-900">{title}</h2>
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
       </div>
       <div className="space-y-1">
         {items.map((item, index) => (
@@ -132,7 +132,7 @@ function FilterBox({
             key={item}
             className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition ${
               index === 0
-                ? "bg-blue-50 font-bold text-blue-800 ring-1 ring-blue-100"
+                ? "bg-slate-50 font-semibold text-slate-950 ring-1 ring-slate-200"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
@@ -140,7 +140,7 @@ function FilterBox({
               defaultChecked={index === 0}
               name={title}
               type={radio ? "radio" : "checkbox"}
-              className="h-3.5 w-3.5 shrink-0 accent-blue-600"
+              className="h-3.5 w-3.5 shrink-0 accent-slate-900"
             />
             <span>{item}</span>
           </label>
@@ -152,11 +152,11 @@ function FilterBox({
 
 function FollowUsCard() {
   return (
-    <section className="rounded-lg border border-blue-100 bg-white p-5 text-center shadow-sm shadow-blue-100/60">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm shadow-slate-200/70">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
         Stay connected
       </p>
-      <h2 className="mt-1 text-base font-black text-slate-950">Follow Us</h2>
+      <h2 className="mt-1 text-base font-bold text-slate-950">Follow Us</h2>
       <p className="mt-3 text-xs leading-5 text-slate-500">
         Get hiring updates, career events and new opportunities first.
       </p>
@@ -176,70 +176,63 @@ function FollowUsCard() {
 
 function JobCard({ job, onView }: { job: Job; onView: () => void }) {
   return (
-    <article className="grid overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm shadow-blue-100/50 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100 md:grid-cols-[104px_minmax(0,1fr)_156px]">
-      <div className="flex items-start justify-center bg-blue-50/70 p-6">
-        <CompanyLogo job={job} size="card" />
-      </div>
+    <article className="grid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/60 transition hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/80 md:grid-cols-[minmax(0,1fr)_132px] md:hover:-translate-y-0.5">
+      <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-4.5">
+        <div className="flex min-w-0 gap-3 sm:gap-4">
+          <CompanyLogo job={job} size="card" />
+          <div className="min-w-0 flex-1">
+            <div className="min-w-0">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-600">{job.company}</p>
+                <h2 className="mt-1 overflow-hidden text-ellipsis text-base font-semibold leading-snug text-slate-950 sm:text-lg sm:leading-tight">
+                  {job.title}
+                </h2>
+              </div>
+            </div>
 
-      <div className="min-w-0 px-5 py-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-bold leading-tight text-slate-950">
-              {job.title}
-            </h2>
-            <p className="mt-1 text-sm font-semibold text-blue-700">{job.company}</p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <FiMapPin className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                {job.location}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <FiBriefcase className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                {job.experience}
+              </span>
+              <span>Founded: {job.founded}</span>
+              <span>{job.size}</span>
+            </div>
+
+            <p className="mt-3 line-clamp-2 max-w-[650px] text-sm leading-6 text-slate-600">
+              {job.description}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {job.tags.slice(0, 6).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
+                >
+                  {tag}
+                </span>
+              ))}
+              {job.tags.length > 6 ? (
+                <span className="rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-slate-100">
+                  +{job.tags.length - 6}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.04em] text-blue-700">
-            Match
-          </span>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
-          <span className="inline-flex items-center gap-1.5">
-            <FiMapPin className="h-3.5 w-3.5 text-blue-500" aria-hidden />
-            {job.location}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <FiBriefcase className="h-3.5 w-3.5 text-blue-500" aria-hidden />
-            {job.experience}
-          </span>
-          <span>Founded: {job.founded}</span>
-          <span>{job.size}</span>
-        </div>
-
-        <p className="mt-3 line-clamp-2 max-w-[640px] text-sm leading-6 text-slate-600">
-          {job.description}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {job.tags.slice(0, 6).map((tag, index) => (
-            <span
-              key={tag}
-              className={`rounded-sm px-2 py-1 text-[11px] ${
-                index < 4 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700"
-              }`}
-            >
-              {tag}
-            </span>
-          ))}
-          {job.tags.length > 6 ? (
-            <span className="rounded-sm bg-slate-100 px-2 py-1 text-[11px] text-slate-700">
-              +{job.tags.length - 6}
-            </span>
-          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-row items-center justify-between gap-3 border-t border-blue-100 bg-blue-50/50 px-5 py-4 md:flex-col md:justify-center md:border-l md:border-t-0">
+      <div className="flex items-center justify-stretch border-t border-slate-100 bg-white px-4 py-3 sm:px-5 sm:py-4 md:justify-center md:border-l md:border-t-0">
         <button
-          className="inline-flex h-11 min-w-28 items-center justify-center rounded-lg bg-gradient-to-r from-[#2563eb] to-[#0ea5e9] px-6 text-sm font-bold text-white shadow-sm shadow-blue-200 transition hover:from-[#1d4ed8] hover:to-[#0284c7] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-950 bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-950 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 md:w-auto md:min-w-24"
           onClick={onView}
           type="button"
         >
           View
           <FiArrowRight className="ml-2 h-4 w-4" aria-hidden />
-        </button>
-        <button className="rounded-md px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white hover:text-slate-800" type="button">
-          Not interested
         </button>
       </div>
     </article>
@@ -247,11 +240,14 @@ function JobCard({ job, onView }: { job: Job; onView: () => void }) {
 }
 
 function CompanyLogo({ job, size }: { job: Job; size: "card" | "modal" }) {
-  const dimensions = size === "modal" ? "h-36 w-36 text-8xl" : "h-16 w-16 text-2xl";
+  const dimensions =
+    size === "modal"
+      ? "h-12 w-12 text-xl sm:h-14 sm:w-14 sm:text-2xl"
+      : "h-12 w-12 text-xl sm:h-16 sm:w-16 sm:text-2xl";
 
   return (
     <div
-      className={`${dimensions} grid place-items-center rounded-xl border font-black shadow-sm ${logoStyles[job.logoTone]}`}
+      className={`${dimensions} grid place-items-center rounded-xl border font-semibold shadow-sm ${logoStyles[job.logoTone]}`}
     >
       {job.logoText}
     </div>
@@ -261,11 +257,6 @@ function CompanyLogo({ job, size }: { job: Job; size: "card" | "modal" }) {
 function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
   const workMode = job.location === "Work From Home" ? "Remote" : "On-site";
   const primarySkills = job.tags.slice(0, 4).join(", ");
-  const roleHighlights = [
-    `${workMode} role based in ${job.location}`,
-    `${job.experience} experience range`,
-    `${job.size} company size`,
-  ];
   const responsibilityItems = [
     `Own full-stack product work for ${job.company}, from user-facing screens to dependable service integrations.`,
     "Translate product requirements into clean interfaces, reusable components and maintainable API flows.",
@@ -285,27 +276,26 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-none bg-slate-950/65 px-4 py-6">
-      <section className="flex max-h-[calc(100vh-48px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-950/25">
-        <div className="flex items-start justify-between gap-5 border-b border-slate-200 bg-white px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-none bg-slate-950/45 px-2 py-3 sm:px-4 sm:py-6">
+      <section className="flex max-h-[calc(100vh-24px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-950/15 sm:max-h-[calc(100vh-48px)]">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-4 py-4 sm:gap-4 sm:px-5">
           <div className="min-w-0">
-            <div className="flex min-w-0 gap-4">
+            <div className="flex min-w-0 gap-3">
               <CompanyLogo job={job} size="card" />
               <div className="min-w-0">
-                <p className="text-sm font-bold text-blue-700">{job.company}</p>
-                <h2 className="mt-1 truncate text-2xl font-black leading-tight text-slate-950">
+                <p className="text-[13px] font-medium text-slate-600">{job.company}</p>
+                <h2 className="mt-1 overflow-hidden text-ellipsis text-lg font-semibold leading-snug text-slate-950 sm:text-xl sm:leading-tight">
                   {job.title}
                 </h2>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-slate-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 ring-1 ring-slate-100">
                     <FiMapPin className="h-3.5 w-3.5" aria-hidden />
                     {job.location}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 ring-1 ring-slate-100">
                     <FiBriefcase className="h-3.5 w-3.5" aria-hidden />
                     {job.experience}
                   </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1">{job.size}</span>
                 </div>
               </div>
             </div>
@@ -321,152 +311,105 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 overflow-hidden bg-slate-50 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="thin-scrollbar hidden space-y-4 overflow-y-auto overscroll-contain border-r border-slate-200 bg-gradient-to-b from-blue-50/70 to-white p-5 lg:block lg:h-full">
-            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900">Company overview</h3>
-              <div className="mt-4 grid gap-3">
-                <InfoRow label="Founded" value={job.founded} />
-                <InfoRow label="Employees" value={job.size} />
-                <InfoRow label="Location" value={job.location} />
-              </div>
-            </div>
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-4 py-4 sm:px-5 sm:py-5">
+          <div className="grid gap-2 sm:grid-cols-4">
+            <SummaryTile label="Job type" value="Full time" />
+            <SummaryTile label="Work mode" value={workMode} />
+            <SummaryTile label="Founded" value={job.founded} />
+            <SummaryTile label="Employees" value={job.size} />
+          </div>
 
-            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-black text-slate-900">Match score</h3>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">High</span>
-              </div>
-              <div className="mt-4 h-2 rounded-full bg-slate-100">
-                <div className="h-2 w-[86%] rounded-full bg-blue-600" />
-              </div>
-              <p className="mt-3 text-xs leading-5 text-slate-600">
-                Strong fit based on your listed skills, preferred role type and expected
-                experience range.
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">About {job.company}</h3>
+            <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
+              <p>{job.description}</p>
+              <p>
+                The team is looking for people who can understand the business context,
+                build carefully and keep improving the product after release. You will work
+                close to real user problems instead of being limited to narrow implementation
+                tickets.
               </p>
             </div>
+          </section>
 
-            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900">Role snapshot</h3>
-              <div className="mt-4 space-y-3">
-                {roleHighlights.map((item) => (
-                  <p key={item} className="flex gap-2 text-xs leading-5 text-slate-600">
-                    <FiCheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
-                    <span>{item}</span>
-                  </p>
-                ))}
-              </div>
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">Job description</h3>
+            <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
+              <p>
+                <b>Function:</b> Software Engineering - {job.title}
+              </p>
+              <p>
+                This opening is best suited for someone who enjoys building complete product
+                flows, understands both frontend polish and backend reliability, and can
+                move comfortably between planning, coding, testing and iteration.
+              </p>
             </div>
+          </section>
 
-            <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900">Hiring contact</h3>
-              <div className="mt-4 flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-full bg-blue-600 text-sm font-black text-white">
-                  {job.recruiter
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)}
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{job.recruiter}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{job.recruiterRole}</p>
-                </div>
-              </div>
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">What you will do</h3>
+            <ul className="mt-2 space-y-2.5">
+              {responsibilityItems.map((item) => (
+                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
+                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">What they are looking for</h3>
+            <ul className="mt-2 space-y-2.5">
+              {requirementItems.map((item) => (
+                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
+                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">Why this role stands out</h3>
+            <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
+              <p>
+                The role gives you room to contribute beyond task execution. You can shape
+                implementation details, improve product quality and learn how the company
+                converts customer needs into working software.
+              </p>
             </div>
-          </aside>
+            <ul className="mt-2 space-y-2.5">
+              {whyJoinItems.map((item) => (
+                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
+                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-          <div className="thin-scrollbar min-h-0 overflow-y-auto overscroll-contain bg-white p-6">
-            <div className="max-w-3xl pb-4">
-              <div className="mb-7 grid gap-3 sm:grid-cols-3">
-                <SummaryTile label="Job type" value="Full time" />
-                <SummaryTile label="Work mode" value={workMode} />
-                <SummaryTile label="Experience" value={job.experience} />
-              </div>
-
-              <h3 className="text-lg font-black text-slate-900">About {job.company}</h3>
-              <div className="mt-3 space-y-4 text-sm leading-7 text-slate-600">
-                <p>
-                  {job.description}
-                </p>
-                <p>
-                  The team is looking for people who can understand the business context,
-                  build carefully and keep improving the product after release. You will work
-                  close to real user problems instead of being limited to narrow implementation
-                  tickets.
-                </p>
-              </div>
-
-              <h3 className="mt-8 text-lg font-black text-slate-900">Job description</h3>
-              <div className="mt-3 space-y-4 text-sm leading-7 text-slate-600">
-                <p>
-                  <b>Function:</b> Software Engineering - {job.title}
-                </p>
-                <p>
-                  This opening is best suited for someone who enjoys building complete product
-                  flows, understands both frontend polish and backend reliability, and can
-                  move comfortably between planning, coding, testing and iteration.
-                </p>
-              </div>
-
-              <h3 className="mt-8 text-lg font-black text-slate-900">What you will do</h3>
-              <ul className="mt-3 space-y-3">
-                {responsibilityItems.map((item) => (
-                  <li key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
-                    <FiCheckCircle className="mt-1 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <h3 className="mt-8 text-lg font-black text-slate-900">What they are looking for</h3>
-              <ul className="mt-3 space-y-3">
-                {requirementItems.map((item) => (
-                  <li key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
-                    <FiCheckCircle className="mt-1 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <h3 className="mt-8 text-lg font-black text-slate-900">Why this role stands out</h3>
-              <div className="mt-3 space-y-4 text-sm leading-7 text-slate-600">
-                <p>
-                  The role gives you room to contribute beyond task execution. You can shape
-                  implementation details, improve product quality and learn how the company
-                  converts customer needs into working software.
-                </p>
-              </div>
-              <ul className="mt-3 space-y-3">
-                {whyJoinItems.map((item) => (
-                  <li key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
-                    <FiCheckCircle className="mt-1 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <h3 className="mt-8 text-lg font-black text-slate-900">Skills</h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {job.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">Skills</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {job.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-md bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-          </div>
+          </section>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-xs font-medium text-slate-500">
             Applying shares your profile with {job.company}.
           </p>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-            <button className="rounded-lg px-5 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" type="button">
-              Not interested
-            </button>
-            <button className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700" type="button">
+            <button className="w-full rounded-md bg-slate-950 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:w-auto" type="button">
               Apply now
               <FiExternalLink className="ml-2 inline h-4 w-4 align-[-2px]" aria-hidden />
             </button>
@@ -477,24 +420,13 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-2.5">
-      <span className="text-xs font-bold uppercase tracking-[0.06em] text-slate-400">
-        {label}
-      </span>
-      <span className="text-right text-xs font-bold text-slate-700">{value}</span>
-    </div>
-  );
-}
-
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-blue-500">
+    <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
         {label}
       </p>
-      <p className="mt-1 text-sm font-bold text-slate-800">{value}</p>
+      <p className="mt-1 text-[13px] font-semibold text-slate-800">{value}</p>
     </div>
   );
 }
