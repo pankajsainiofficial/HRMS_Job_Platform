@@ -1,17 +1,19 @@
 "use client";
 
-import type { ComponentType } from "react";
+import type { ComponentType, FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import {
   FiAlertCircle,
   FiBriefcase,
   FiFileText,
+  FiLayers,
   FiLock,
   FiLogOut,
   FiMail,
   FiMapPin,
   FiPaperclip,
+  FiPlus,
   FiUploadCloud,
   FiUser,
   FiX,
@@ -21,11 +23,30 @@ import { DashboardHeader } from "../_components/dashboard-header";
 
 type AuthMode = "login" | "register";
 
+type LibraryStage = {
+  id: number;
+  name: string;
+  process: string;
+};
+
 const basicDetails = [
   { icon: FiUser, label: "Full name", value: "Preet Kumar" },
   { icon: FiMail, label: "Email", value: "preet@example.com" },
   { icon: FiBriefcase, label: "Experience", value: "3+ years" },
   { icon: FiMapPin, label: "Location", value: "Bangalore / Remote" },
+];
+
+const initialStageLibrary: LibraryStage[] = [
+  {
+    id: 1,
+    name: "Application review",
+    process: "Review resume, cover letter and profile details before moving the candidate forward.",
+  },
+  {
+    id: 2,
+    name: "Technical interview",
+    process: "Evaluate problem-solving, role skills and communication with the hiring team.",
+  },
 ];
 
 export default function ProfilePage() {
@@ -34,6 +55,10 @@ export default function ProfilePage() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [resumeName, setResumeName] = useState("Preet_Kumar_Resume.pdf");
   const [coverLetterName, setCoverLetterName] = useState("Cover_Letter.pdf");
+  const [stageLibrary, setStageLibrary] = useState<LibraryStage[]>(initialStageLibrary);
+  const [showStagePopup, setShowStagePopup] = useState(false);
+  const [stageName, setStageName] = useState("");
+  const [stageProcess, setStageProcess] = useState("");
 
   useEffect(() => {
     const syncAuthState = () => {
@@ -64,6 +89,27 @@ export default function ProfilePage() {
   };
 
   const isLogin = authMode === "login";
+  const canAddStage = stageName.trim().length > 0 && stageProcess.trim().length > 0;
+
+  const addStageToLibrary = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!canAddStage) {
+      return;
+    }
+
+    setStageLibrary((currentStages) => [
+      ...currentStages,
+      {
+        id: Date.now(),
+        name: stageName.trim(),
+        process: stageProcess.trim(),
+      },
+    ]);
+    setStageName("");
+    setStageProcess("");
+    setShowStagePopup(false);
+  };
 
   return (
     <div className="min-h-screen bg-transparent text-[#2f3747]">
@@ -132,6 +178,54 @@ export default function ProfilePage() {
                   />
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Custom pipeline
+                </p>
+                <h2 className="mt-1 text-base font-semibold text-slate-950">
+                  Stage Library
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                  Define reusable stage names and processes for your hiring pipeline.
+                </p>
+              </div>
+              <button
+                className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-950 bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-950 hover:text-white sm:w-auto"
+                onClick={() => setShowStagePopup(true)}
+                type="button"
+              >
+                <FiPlus className="mr-2 h-4 w-4" aria-hidden />
+                Add stage
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {stageLibrary.map((stage, index) => (
+                <article
+                  className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50/70 p-3"
+                  key={stage.id}
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-slate-500 ring-1 ring-slate-100">
+                    <FiLayers className="h-4 w-4" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 ring-1 ring-slate-100">
+                        Stage {index + 1}
+                      </span>
+                      <h3 className="text-sm font-semibold text-slate-900">{stage.name}</h3>
+                    </div>
+                    <p className="mt-1 text-[13px] leading-5 text-slate-600">
+                      {stage.process}
+                    </p>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </section>
@@ -281,6 +375,71 @@ export default function ProfilePage() {
               </button>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {showStagePopup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-5 sm:px-4">
+          <form
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-950/15 sm:p-5"
+            onSubmit={addStageToLibrary}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Stage Library
+                </p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                  Add custom pipeline stage
+                </h2>
+              </div>
+              <button
+                aria-label="Close add stage popup"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => setShowStagePopup(false)}
+                type="button"
+              >
+                <FiX className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-xs font-semibold text-slate-600">Name</span>
+              <input
+                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+                onChange={(event) => setStageName(event.target.value)}
+                placeholder="e.g. Manager interview"
+                value={stageName}
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="text-xs font-semibold text-slate-600">Process</span>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+                onChange={(event) => setStageProcess(event.target.value)}
+                placeholder="Describe what happens in this stage"
+                value={stageProcess}
+              />
+            </label>
+
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-md px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                onClick={() => setShowStagePopup(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canAddStage}
+                type="submit"
+              >
+                Add stage
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </div>
