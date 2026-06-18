@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import { ReduxProvider } from "./_redux/provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Instahyre Jobs Dashboard",
+  title: "HireOnDeck Jobs Dashboard",
   description:
-    "A responsive jobs page and job detail modal for a hiring platform.",
+    "A responsive jobs page and job detail modal for HireOnDeck.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +18,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ReduxProvider>{children}</ReduxProvider>
+      </body>
     </html>
   );
 }

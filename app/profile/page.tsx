@@ -1,114 +1,138 @@
 "use client";
 
 import type { ComponentType, FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import {
   FiAlertCircle,
-  FiBriefcase,
   FiFileText,
-  FiLayers,
   FiLock,
   FiLogOut,
   FiMail,
-  FiMapPin,
   FiPaperclip,
-  FiPlus,
   FiUploadCloud,
   FiUser,
   FiX,
 } from "react-icons/fi";
 import { DashboardFooter } from "../_components/dashboard-footer";
 import { DashboardHeader } from "../_components/dashboard-header";
+import {
+  useCandidateLoginMutation,
+  useCandidateRegisterMutation,
+  useGetCandidateSessionQuery,
+  useUploadCandidateResumeMutation,
+} from "../_redux/api/AuthApi";
 
 type AuthMode = "login" | "register";
 
-type LibraryStage = {
-  id: number;
-  name: string;
-  process: string;
-};
-
-const basicDetails = [
-  { icon: FiUser, label: "Full name", value: "Preet Kumar" },
-  { icon: FiMail, label: "Email", value: "preet@example.com" },
-  { icon: FiBriefcase, label: "Experience", value: "3+ years" },
-  { icon: FiMapPin, label: "Location", value: "Bangalore / Remote" },
-];
-
-const initialStageLibrary: LibraryStage[] = [
-  {
-    id: 1,
-    name: "Application review",
-    process: "Review resume, cover letter and profile details before moving the candidate forward.",
-  },
-  {
-    id: 2,
-    name: "Technical interview",
-    process: "Evaluate problem-solving, role skills and communication with the hiring team.",
-  },
-];
-
+const AUTH_STORAGE_KEY = "hireondeck-auth";
 export default function ProfilePage() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [isSignedIn, setIsSignedIn] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [isLocallySignedOut, setIsLocallySignedOut] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-  const [resumeName, setResumeName] = useState("Preet_Kumar_Resume.pdf");
-  const [coverLetterName, setCoverLetterName] = useState("Cover_Letter.pdf");
-  const [stageLibrary, setStageLibrary] = useState<LibraryStage[]>(initialStageLibrary);
-  const [showStagePopup, setShowStagePopup] = useState(false);
-  const [stageName, setStageName] = useState("");
-  const [stageProcess, setStageProcess] = useState("");
-
-  useEffect(() => {
-    const syncAuthState = () => {
-      setIsSignedIn(localStorage.getItem("instahyre-auth") !== "signed-out");
-    };
-
-    syncAuthState();
-    window.addEventListener("storage", syncAuthState);
-    window.addEventListener("instahyre-auth-change", syncAuthState);
-
-    return () => {
-      window.removeEventListener("storage", syncAuthState);
-      window.removeEventListener("instahyre-auth-change", syncAuthState);
-    };
-  }, []);
+  const [resumeName, setResumeName] = useState<string | null>(null);
+  const [resumeUploadMessage, setResumeUploadMessage] = useState<string | null>(null);
+  const [candidateLogin, { isLoading: isLoggingIn }] = useCandidateLoginMutation();
+  const [candidateRegister, { isLoading: isRegistering }] = useCandidateRegisterMutation();
+  const [uploadCandidateResume, { isLoading: isUploadingResume }] = useUploadCandidateResumeMutation();
+  const {
+    data: candidateSession,
+    isLoading: isSessionLoading,
+    refetch: refetchCandidateSession,
+  } = useGetCandidateSessionQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const candidate =
+    !isLocallySignedOut && candidateSession?.success ? candidateSession.data?.candidate : undefined;
+  const isSignedIn = Boolean(candidate);
+  const basicDetails = [
+    { icon: FiUser, label: "Full name", value: candidate?.name ?? "Not specified" },
+    { icon: FiMail, label: "Email", value: candidate?.email ?? "Not specified" },
+  ];
+  const resumeUrl = candidate?.resumeUrl ?? null;
+  const visibleResumeName = resumeName ?? getResumeFileName(resumeUrl);
 
   const signIn = () => {
-    localStorage.setItem("instahyre-auth", "signed-in");
-    window.dispatchEvent(new Event("instahyre-auth-change"));
-    setIsSignedIn(true);
+    localStorage.setItem(AUTH_STORAGE_KEY, "signed-in");
+    setIsLocallySignedOut(false);
   };
 
   const signOut = () => {
-    localStorage.setItem("instahyre-auth", "signed-out");
-    window.dispatchEvent(new Event("instahyre-auth-change"));
-    setIsSignedIn(false);
+    localStorage.setItem(AUTH_STORAGE_KEY, "signed-out");
+    setIsLocallySignedOut(true);
     setAuthMode("login");
   };
 
   const isLogin = authMode === "login";
-  const canAddStage = stageName.trim().length > 0 && stageProcess.trim().length > 0;
 
-  const addStageToLibrary = (event: FormEvent<HTMLFormElement>) => {
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setAuthMessage(null);
 
-    if (!canAddStage) {
-      return;
+    const formData = new FormData(event.currentTarget);
+    const email = getFormValue(formData, "email");
+    const password = getFormValue(formData, "password");
+
+    try {
+      if (isLogin) {
+        const response = await candidateLogin({
+          email,
+          password,
+        }).unwrap();
+
+        if (!response.success) {
+          setAuthMessage(getAuthResponseMessage(response));
+          return;
+        }
+
+        signIn();
+        refetchCandidateSession();
+        return;
+      }
+
+      const firstName = getFormValue(formData, "firstName");
+      const lastName = getFormValue(formData, "lastName");
+      const response = await candidateRegister({
+        firstName,
+        lastName,
+        email,
+        password,
+      }).unwrap();
+
+      if (!response.success) {
+        setAuthMessage(getAuthResponseMessage(response));
+        return;
+      }
+
+      signIn();
+      refetchCandidateSession();
+    } catch (error) {
+      setAuthMessage(
+        getApiErrorMessage(error, isLogin ? "Unable to login candidate" : "Unable to register candidate"),
+      );
     }
+  };
 
-    setStageLibrary((currentStages) => [
-      ...currentStages,
-      {
-        id: Date.now(),
-        name: stageName.trim(),
-        process: stageProcess.trim(),
-      },
-    ]);
-    setStageName("");
-    setStageProcess("");
-    setShowStagePopup(false);
+  const handleResumeUpload = async (file: File) => {
+    setResumeUploadMessage(null);
+
+    const formData = new FormData();
+    formData.append("resume", file);
+
+    try {
+      const response = await uploadCandidateResume(formData).unwrap();
+
+      if (!response.success) {
+        setResumeUploadMessage(getAuthResponseMessage(response));
+        return;
+      }
+
+      setResumeName(response.data?.resume?.fileName ?? file.name);
+      refetchCandidateSession();
+    } catch (error) {
+      setResumeUploadMessage(getApiErrorMessage(error, "Unable to upload resume"));
+    }
   };
 
   return (
@@ -124,10 +148,12 @@ export default function ProfilePage() {
                   Candidate profile
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-                  {isSignedIn ? "Preet Kumar" : "Welcome back"}
+                  {isSessionLoading ? "Checking session..." : isSignedIn ? candidate?.name : "Welcome back"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  {isSignedIn
+                  {isSessionLoading
+                    ? "Validating your candidate session."
+                    : isSignedIn
                     ? "Upload your documents and review the basic details recruiters will see."
                     : "Log in or register to manage your candidate workspace."}
                 </p>
@@ -147,22 +173,23 @@ export default function ProfilePage() {
           </div>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:p-5">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3">
               <UploadButton
+                disabled={!isSignedIn || isUploadingResume}
                 label="Upload resume"
-                onChange={(fileName) => setResumeName(fileName)}
+                onChange={handleResumeUpload}
               />
-              <UploadButton
-                label="Upload cover letter"
-                onChange={(fileName) => setCoverLetterName(fileName)}
-              />
+              {resumeUploadMessage ? (
+                <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                  {resumeUploadMessage}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-5 border-t border-slate-100 pt-5">
               <h2 className="text-base font-semibold text-slate-950">Uploaded documents</h2>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <UploadedDocument title="Resume" fileName={resumeName} />
-                <UploadedDocument title="Cover letter" fileName={coverLetterName} />
+              <div className="mt-3 grid gap-3">
+                <UploadedDocument fileName={visibleResumeName} title="Resume" url={resumeUrl} />
               </div>
             </div>
 
@@ -180,56 +207,9 @@ export default function ProfilePage() {
               </div>
             </div>
           </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Custom pipeline
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-slate-950">
-                  Stage Library
-                </h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                  Define reusable stage names and processes for your hiring pipeline.
-                </p>
-              </div>
-              <button
-                className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-950 bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-950 hover:text-white sm:w-auto"
-                onClick={() => setShowStagePopup(true)}
-                type="button"
-              >
-                <FiPlus className="mr-2 h-4 w-4" aria-hidden />
-                Add stage
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              {stageLibrary.map((stage, index) => (
-                <article
-                  className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50/70 p-3"
-                  key={stage.id}
-                >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-slate-500 ring-1 ring-slate-100">
-                    <FiLayers className="h-4 w-4" aria-hidden />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 ring-1 ring-slate-100">
-                        Stage {index + 1}
-                      </span>
-                      <h3 className="text-sm font-semibold text-slate-900">{stage.name}</h3>
-                    </div>
-                    <p className="mt-1 text-[13px] leading-5 text-slate-600">
-                      {stage.process}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
         </section>
 
+        {!isSessionLoading && !isSignedIn ? (
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
             <div className="border-b border-slate-100 bg-white p-4 sm:p-5">
@@ -240,7 +220,10 @@ export default function ProfilePage() {
                       ? "bg-white text-slate-950 shadow-sm"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
-                  onClick={() => setAuthMode("login")}
+                  onClick={() => {
+                    setAuthMessage(null);
+                    setAuthMode("login");
+                  }}
                   type="button"
                 >
                   Login
@@ -251,7 +234,10 @@ export default function ProfilePage() {
                       ? "bg-white text-slate-950 shadow-sm"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
-                  onClick={() => setAuthMode("register")}
+                  onClick={() => {
+                    setAuthMessage(null);
+                    setAuthMode("register");
+                  }}
                   type="button"
                 >
                   Register
@@ -274,7 +260,10 @@ export default function ProfilePage() {
 
               <button
                 className="mt-5 flex h-11 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                onClick={signIn}
+                onClick={() => {
+                  signIn();
+                  refetchCandidateSession();
+                }}
                 type="button"
               >
                 <FcGoogle className="mr-2 h-5 w-5" aria-hidden />
@@ -291,42 +280,63 @@ export default function ProfilePage() {
 
               <form
                 className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  signIn();
-                }}
+                onSubmit={handleAuthSubmit}
               >
                 {!isLogin ? (
-                  <AuthField
-                    icon={FiUser}
-                    label="Full name"
-                    placeholder="Enter your name"
-                    type="text"
-                  />
+                  <>
+                    <AuthField
+                      autoComplete="given-name"
+                      icon={FiUser}
+                      label="First name"
+                      name="firstName"
+                      placeholder="Enter your first name"
+                      type="text"
+                    />
+                    <AuthField
+                      autoComplete="family-name"
+                      icon={FiUser}
+                      label="Last name"
+                      name="lastName"
+                      placeholder="Enter your last name"
+                      type="text"
+                    />
+                  </>
                 ) : null}
                 <AuthField
+                  autoComplete="email"
                   icon={FiMail}
                   label="Email address"
+                  name="email"
                   placeholder="Enter your email"
                   type="email"
                 />
                 <AuthField
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   icon={FiLock}
                   label="Password"
+                  name="password"
                   placeholder="Enter your password"
                   type="password"
                 />
 
+                {authMessage ? (
+                  <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                    {authMessage}
+                  </p>
+                ) : null}
+
                 <button
-                  className="h-11 w-full rounded-md bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                  className="h-11 w-full rounded-md bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={isLoggingIn || isRegistering}
                   type="submit"
                 >
-                  {isLogin ? "Login" : "Register"}
+                  {isLogin ? (isLoggingIn ? "Logging in..." : "Login") : isRegistering ? "Registering..." : "Register"}
                 </button>
               </form>
             </div>
           </section>
         </aside>
+        ) : null}
       </main>
 
       <DashboardFooter />
@@ -378,83 +388,78 @@ export default function ProfilePage() {
         </div>
       ) : null}
 
-      {showStagePopup ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-5 sm:px-4">
-          <form
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-950/15 sm:p-5"
-            onSubmit={addStageToLibrary}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Stage Library
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">
-                  Add custom pipeline stage
-                </h2>
-              </div>
-              <button
-                aria-label="Close add stage popup"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                onClick={() => setShowStagePopup(false)}
-                type="button"
-              >
-                <FiX className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-
-            <label className="mt-5 block">
-              <span className="text-xs font-semibold text-slate-600">Name</span>
-              <input
-                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
-                onChange={(event) => setStageName(event.target.value)}
-                placeholder="e.g. Manager interview"
-                value={stageName}
-              />
-            </label>
-
-            <label className="mt-4 block">
-              <span className="text-xs font-semibold text-slate-600">Process</span>
-              <textarea
-                className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
-                onChange={(event) => setStageProcess(event.target.value)}
-                placeholder="Describe what happens in this stage"
-                value={stageProcess}
-              />
-            </label>
-
-            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                className="rounded-md px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                onClick={() => setShowStagePopup(false)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canAddStage}
-                type="submit"
-              >
-                Add stage
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </div>
   );
 }
 
+function getFormValue(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "data" in error) {
+    const data = (error as { data?: unknown }).data;
+
+    if (isAuthResponse(data)) {
+      return getAuthResponseMessage(data);
+    }
+  }
+
+  return fallback;
+}
+
+function getResumeFileName(resumeUrl: string | null) {
+  if (!resumeUrl) {
+    return "No resume uploaded";
+  }
+
+  try {
+    const pathname = new URL(resumeUrl).pathname;
+    const fileName = pathname.split("/").filter(Boolean).at(-1);
+
+    return fileName ? decodeURIComponent(fileName) : "Resume.pdf";
+  } catch {
+    return "Resume.pdf";
+  }
+}
+
+function getAuthResponseMessage(response: {
+  message: string;
+  details?: { path: string; message: string }[];
+}) {
+  const detailMessages = response.details
+    ?.map((detail) => detail.message.trim())
+    .filter(Boolean);
+
+  if (detailMessages?.length) {
+    return detailMessages.join(" ");
+  }
+
+  return response.message;
+}
+
+function isAuthResponse(value: unknown): value is {
+  message: string;
+  details?: { path: string; message: string }[];
+} {
+  return typeof value === "object" && value !== null && "message" in value;
+}
+
 function UploadButton({
+  disabled = false,
   label,
   onChange,
 }: {
+  disabled?: boolean;
   label: string;
-  onChange: (fileName: string) => void;
+  onChange: (file: File) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50">
+    <label
+      className={`flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 transition ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
       <span className="flex min-w-0 items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-slate-100">
           <FiUploadCloud className="h-4 w-4" aria-hidden />
@@ -468,12 +473,15 @@ function UploadButton({
       <input
         accept=".pdf,.doc,.docx"
         className="sr-only"
+        disabled={disabled}
         onChange={(event) => {
-          const fileName = event.target.files?.[0]?.name;
+          const file = event.target.files?.[0];
 
-          if (fileName) {
-            onChange(fileName);
+          if (file) {
+            onChange(file);
           }
+
+          event.target.value = "";
         }}
         type="file"
       />
@@ -481,9 +489,17 @@ function UploadButton({
   );
 }
 
-function UploadedDocument({ title, fileName }: { title: string; fileName: string }) {
-  return (
-    <article className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-4 py-3">
+function UploadedDocument({
+  fileName,
+  title,
+  url,
+}: {
+  fileName: string;
+  title: string;
+  url: string | null;
+}) {
+  const content = (
+    <>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-slate-500 ring-1 ring-slate-100">
         <FiFileText className="h-4 w-4" aria-hidden />
       </span>
@@ -493,7 +509,26 @@ function UploadedDocument({ title, fileName }: { title: string; fileName: string
         </p>
         <p className="mt-0.5 truncate text-sm font-medium text-slate-800">{fileName}</p>
       </div>
-    </article>
+    </>
+  );
+
+  if (!url) {
+    return (
+      <article className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-4 py-3">
+        {content}
+      </article>
+    );
+  }
+
+  return (
+    <a
+      className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-4 py-3 transition hover:border-slate-200 hover:bg-white"
+      href={url}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {content}
+    </a>
   );
 }
 
@@ -522,13 +557,17 @@ function BasicDetail({
 }
 
 function AuthField({
+  autoComplete,
   icon: Icon,
   label,
+  name,
   placeholder,
   type,
 }: {
+  autoComplete: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
+  name: string;
   placeholder: string;
   type: string;
 }) {
@@ -538,8 +577,11 @@ function AuthField({
       <span className="mt-2 flex h-11 items-center rounded-md border border-slate-200 bg-white px-3 focus-within:border-slate-400">
         <Icon className="mr-2 h-4 w-4 text-slate-400" aria-hidden />
         <input
+          autoComplete={autoComplete}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+          name={name}
           placeholder={placeholder}
+          required
           type={type}
         />
       </span>

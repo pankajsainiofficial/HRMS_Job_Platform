@@ -16,7 +16,7 @@ export function DashboardPlaceholderPage({
       <main className="mx-auto w-full max-w-[1180px] px-4 py-10">
         <section className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm shadow-blue-100/60 sm:p-8">
           <p className="text-xs font-bold uppercase tracking-[0.1em] text-blue-600">
-            Instahyre workspace
+            HireOnDeck workspace
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-slate-900">{title}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{description}</p>

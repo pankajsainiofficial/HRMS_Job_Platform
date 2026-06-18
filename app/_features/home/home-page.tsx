@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiArrowRight,
   FiBriefcase,
@@ -14,9 +14,19 @@ import {
 } from "react-icons/fi";
 import { DashboardFooter } from "../../_components/dashboard-footer";
 import { DashboardHeader } from "../../_components/dashboard-header";
-import { Job, jobs } from "./data";
+import { useLazyGetCandidateSessionQuery } from "../../_redux/api/AuthApi";
+import {
+  Job,
+  LogoTone,
+  useApplyJobMutation,
+  useGetJobByIdQuery,
+  useGetJobsQuery,
+} from "../../_redux/api/jobApi";
 
-const logoStyles: Record<Job["logoTone"], string> = {
+const ALL_FILTER = "All";
+const JOBS_PAGE_LIMIT = 10;
+
+const logoStyles: Record<LogoTone, string> = {
   green: "bg-emerald-50 text-emerald-700 border-emerald-100",
   red: "bg-red-50 text-red-600 border-red-100",
   blue: "bg-blue-50 text-blue-700 border-blue-100",
@@ -25,9 +35,66 @@ const logoStyles: Record<Job["logoTone"], string> = {
   dark: "bg-slate-900 text-white border-slate-800",
 };
 
+type FilterKey = "location" | "workMode" | "jobType" | "experience";
+type Filters = Record<FilterKey, string>;
+type FilterOption = {
+  label: string;
+  value: string;
+  count: number;
+};
+
+const defaultFilters: Filters = {
+  location: ALL_FILTER,
+  workMode: ALL_FILTER,
+  jobType: ALL_FILTER,
+  experience: ALL_FILTER,
+};
+
 export function HomePage() {
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const {
+    data: jobsData,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetching,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useGetJobsQuery({ limit: JOBS_PAGE_LIMIT });
+  const jobs = useMemo(() => getUniqueJobs(jobsData?.pages.flatMap((page) => page.jobs) ?? []), [jobsData]);
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const featuredJob = useMemo(() => selectedJob ?? jobs[0], [selectedJob]);
+  const {
+    data: selectedJobDetail,
+    isError: isJobDetailError,
+    isFetching: isJobDetailLoading,
+    refetch: refetchJobDetail,
+  } = useGetJobByIdQuery(selectedJob?.id ?? "", {
+    skip: !selectedJob,
+  });
+
+  const filterOptions = useMemo(
+    () => ({
+      location: createFilterOptions(jobs, (job) => cleanValue(job.location)),
+      workMode: createFilterOptions(jobs, (job) => cleanValue(job.workMode)),
+      jobType: createFilterOptions(jobs, (job) => cleanValue(job.jobType ?? job.employmentType)),
+      experience: createFilterOptions(jobs, (job) => cleanValue(job.experience)),
+    }),
+    [jobs],
+  );
+
+  const filteredJobs = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          matchesFilter(cleanValue(job.location), filters.location) &&
+          matchesFilter(cleanValue(job.workMode), filters.workMode) &&
+          matchesFilter(cleanValue(job.jobType ?? job.employmentType), filters.jobType) &&
+          matchesFilter(cleanValue(job.experience), filters.experience),
+      ),
+    [filters, jobs],
+  );
 
   useEffect(() => {
     if (!selectedJob) {
@@ -45,6 +112,37 @@ export function HomePage() {
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [selectedJob]);
+
+  useEffect(() => {
+    const loadMoreElement = loadMoreRef.current;
+
+    if (!loadMoreElement || !hasNextPage || isFetching || isFetchingNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "360px 0px" },
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fetchNextPage, hasNextPage, isFetching, isFetchingNextPage]);
+
+  function updateFilter(key: FilterKey, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function clearFilters() {
+    setFilters(defaultFilters);
+  }
 
   return (
     <div className="min-h-screen bg-transparent text-[#2f3747]">
@@ -68,57 +166,146 @@ export function HomePage() {
             </div>
             <div className="space-y-3 p-3.5">
               <FilterBox
-                title="Filter by status"
-                items={["Undecided (15)", "Interested (14)"]}
-                radio
-              />
-              <FilterBox
                 title="Filter by location"
-                items={["All (15)", "Work From Home (5)", "Noida (3)", "Bangalore (3)", "Pune (1)"]}
+                name="location"
+                options={filterOptions.location}
+                selectedValue={filters.location}
+                onChange={(value) => updateFilter("location", value)}
               />
               <FilterBox
-                title="Filter by company size"
-                items={["All (15)", "Small (10)", "Large (2)", "Medium (3)"]}
+                title="Filter by work mode"
+                name="workMode"
+                options={filterOptions.workMode}
+                selectedValue={filters.workMode}
+                onChange={(value) => updateFilter("workMode", value)}
               />
               <FilterBox
-                title="Filter by industry"
-                items={[
-                  "All (15)",
-                  "Renewables / Environment (1)",
-                  "Education / Training (1)",
-                  "Computer Software / IT / Internet (10)",
-                  "Hospitality / Travel (1)",
-                ]}
+                title="Filter by job type"
+                name="jobType"
+                options={filterOptions.jobType}
+                selectedValue={filters.jobType}
+                onChange={(value) => updateFilter("jobType", value)}
               />
+              <FilterBox
+                title="Filter by experience"
+                name="experience"
+                options={filterOptions.experience}
+                selectedValue={filters.experience}
+                onChange={(value) => updateFilter("experience", value)}
+              />
+              <button
+                className="h-9 w-full rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={clearFilters}
+                type="button"
+              >
+                Clear filters
+              </button>
             </div>
           </div>
           <FollowUsCard />
         </aside>
 
         <section className="space-y-3.5">
-          {jobs.map((job) => (
-            <JobCard key={job.id} job={job} onView={() => setSelectedJob(job)} />
-          ))}
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm shadow-slate-200/60">
+            <p className="font-semibold text-slate-900">
+              {isLoading ? "Loading jobs..." : `${filteredJobs.length} jobs found`}
+            </p>
+            {isError ? (
+              <button
+                className="text-xs font-semibold text-slate-700 underline underline-offset-4"
+                onClick={() => refetch()}
+                type="button"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+
+          {isLoading ? <JobsState message="Fetching latest published jobs..." /> : null}
+          {isError ? <JobsState message="Unable to load jobs. Please try again." /> : null}
+          {!isLoading && !isError && filteredJobs.length === 0 ? (
+            <JobsState message="No jobs match the selected filters." />
+          ) : null}
+
+          {!isLoading && !isError
+            ? filteredJobs.map((job) => (
+                <JobCard key={job.id} job={job} onView={() => setSelectedJob(job)} />
+              ))
+            : null}
+
+          {!isLoading && !isError && hasNextPage ? <div ref={loadMoreRef} className="h-px" /> : null}
         </section>
       </main>
 
       <DashboardFooter />
 
       {selectedJob ? (
-        <JobModal job={featuredJob} onClose={() => setSelectedJob(null)} />
+        <JobModal
+          fallbackJob={selectedJob}
+          isError={isJobDetailError}
+          isLoading={isJobDetailLoading}
+          job={selectedJobDetail ?? selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onRetry={refetchJobDetail}
+        />
       ) : null}
     </div>
   );
 }
 
+function createFilterOptions(jobs: Job[], getValue: (job: Job) => string) {
+  const counts = new Map<string, number>();
+
+  jobs.forEach((job) => {
+    const value = getValue(job);
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  });
+
+  const options = Array.from(counts.entries())
+    .sort(([first], [second]) => first.localeCompare(second))
+    .map(([value, count]) => ({ label: value, value, count }));
+
+  return [{ label: ALL_FILTER, value: ALL_FILTER, count: jobs.length }, ...options];
+}
+
+function getUniqueJobs(jobs: Job[]) {
+  const uniqueJobs = new Map<string, Job>();
+
+  jobs.forEach((job) => {
+    if (!uniqueJobs.has(job.id)) {
+      uniqueJobs.set(job.id, job);
+    }
+  });
+
+  return Array.from(uniqueJobs.values());
+}
+
+function cleanValue(value: number | string | null | undefined) {
+  const trimmed = String(value ?? "").trim();
+  return trimmed ? trimmed : "Not specified";
+}
+
+function matchesFilter(value: string, selectedValue: string) {
+  return selectedValue === ALL_FILTER || value === selectedValue;
+}
+
+function formatSalary(salaryRange: string | null | undefined) {
+  const value = cleanValue(salaryRange);
+  return value === "Not specified" ? value : `${value} LPA`;
+}
+
 function FilterBox({
   title,
-  items,
-  radio = false,
+  name,
+  options,
+  selectedValue,
+  onChange,
 }: {
   title: string;
-  items: string[];
-  radio?: boolean;
+  name: string;
+  options: FilterOption[];
+  selectedValue: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <section className="rounded-lg border border-slate-100 bg-white p-3.5">
@@ -127,25 +314,87 @@ function FilterBox({
         <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
       </div>
       <div className="space-y-1">
-        {items.map((item, index) => (
-          <label
-            key={item}
-            className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition ${
-              index === 0
-                ? "bg-slate-50 font-semibold text-slate-950 ring-1 ring-slate-200"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-            }`}
-          >
-            <input
-              defaultChecked={index === 0}
-              name={title}
-              type={radio ? "radio" : "checkbox"}
-              className="h-3.5 w-3.5 shrink-0 accent-slate-900"
-            />
-            <span>{item}</span>
-          </label>
-        ))}
+        {options.map((option) => {
+          const checked = selectedValue === option.value;
+
+          return (
+            <label
+              key={option.value}
+              className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition ${
+                checked
+                  ? "bg-slate-50 font-semibold text-slate-950 ring-1 ring-slate-200"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+              }`}
+            >
+              <input
+                checked={checked}
+                name={name}
+                onChange={() => onChange(option.value)}
+                type="radio"
+                className="h-3.5 w-3.5 shrink-0 accent-slate-900"
+              />
+              <span>
+                {option.label} ({option.count})
+              </span>
+            </label>
+          );
+        })}
       </div>
+    </section>
+  );
+}
+
+function JobsState({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-5 py-10 text-center text-sm font-medium text-slate-500 shadow-sm shadow-slate-200/60">
+      {message}
+    </div>
+  );
+}
+
+function ModalState({
+  actionLabel,
+  message,
+  onAction,
+}: {
+  actionLabel?: string;
+  message: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className="grid min-h-72 place-items-center rounded-lg border border-slate-100 bg-slate-50/70 px-5 py-10 text-center">
+      <div>
+        <p className="text-sm font-semibold text-slate-700">{message}</p>
+        {onAction && actionLabel ? (
+          <button
+            className="mt-4 rounded-md border border-slate-950 bg-white px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-950 hover:text-white"
+            onClick={onAction}
+            type="button"
+          >
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DetailList({ items, title }: { items: string[]; title: string }) {
+  return (
+    <section className="mt-5 border-t border-slate-100 pt-5">
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      {items.length > 0 ? (
+        <ul className="mt-2 space-y-2.5">
+          {items.map((item) => (
+            <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
+              <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-[13px] leading-6 text-slate-600">Not specified</p>
+      )}
     </section>
   );
 }
@@ -175,6 +424,9 @@ function FollowUsCard() {
 }
 
 function JobCard({ job, onView }: { job: Job; onView: () => void }) {
+  const detailPills = [cleanValue(job.jobType), cleanValue(job.workMode), cleanValue(job.employmentType)]
+    .filter((value, index, values) => value !== "Not specified" && values.indexOf(value) === index);
+
   return (
     <article className="grid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/60 transition hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/80 md:grid-cols-[minmax(0,1fr)_132px] md:hover:-translate-y-0.5">
       <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-4.5">
@@ -182,44 +434,37 @@ function JobCard({ job, onView }: { job: Job; onView: () => void }) {
           <CompanyLogo job={job} size="card" />
           <div className="min-w-0 flex-1">
             <div className="min-w-0">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-600">{job.company}</p>
-                <h2 className="mt-1 overflow-hidden text-ellipsis text-base font-semibold leading-snug text-slate-950 sm:text-lg sm:leading-tight">
-                  {job.title}
-                </h2>
-              </div>
+              <p className="text-sm font-medium text-slate-600">{cleanValue(job.company)}</p>
+              <h2 className="mt-1 overflow-hidden text-ellipsis text-base font-semibold leading-snug text-slate-950 sm:text-lg sm:leading-tight">
+                {cleanValue(job.title)}
+              </h2>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
               <span className="inline-flex items-center gap-1.5">
                 <FiMapPin className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                {job.location}
+                {cleanValue(job.location)}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <FiBriefcase className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                {job.experience}
+                {cleanValue(job.experience)}
               </span>
-              <span>Founded: {job.founded}</span>
-              <span>{job.size}</span>
+              <span>Founded: {cleanValue(job.founded)}</span>
+              <span>{cleanValue(job.size)}</span>
             </div>
 
             <p className="mt-3 line-clamp-2 max-w-[650px] text-sm leading-6 text-slate-600">
-              {job.description}
+              {cleanValue(job.description)}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {job.tags.slice(0, 6).map((tag) => (
+              {detailPills.map((pill) => (
                 <span
-                  key={tag}
+                  key={pill}
                   className="rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
                 >
-                  {tag}
+                  {pill}
                 </span>
               ))}
-              {job.tags.length > 6 ? (
-                <span className="rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-slate-100">
-                  +{job.tags.length - 6}
-                </span>
-              ) : null}
             </div>
           </div>
         </div>
@@ -244,36 +489,95 @@ function CompanyLogo({ job, size }: { job: Job; size: "card" | "modal" }) {
     size === "modal"
       ? "h-12 w-12 text-xl sm:h-14 sm:w-14 sm:text-2xl"
       : "h-12 w-12 text-xl sm:h-16 sm:w-16 sm:text-2xl";
+  const logoTone = logoStyles[job.logoTone] ? job.logoTone : "blue";
 
   return (
     <div
-      className={`${dimensions} grid place-items-center rounded-xl border font-semibold shadow-sm ${logoStyles[job.logoTone]}`}
+      className={`${dimensions} grid place-items-center rounded-xl border font-semibold shadow-sm ${logoStyles[logoTone]}`}
     >
-      {job.logoText}
+      {cleanValue(job.logoText)}
     </div>
   );
 }
 
-function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
-  const workMode = job.location === "Work From Home" ? "Remote" : "On-site";
-  const primarySkills = job.tags.slice(0, 4).join(", ");
-  const responsibilityItems = [
-    `Own full-stack product work for ${job.company}, from user-facing screens to dependable service integrations.`,
-    "Translate product requirements into clean interfaces, reusable components and maintainable API flows.",
-    "Collaborate with product, design and business teams to improve hiring, workflow and reporting experiences.",
-    "Review code, debug production issues and keep delivery quality high without slowing the team down.",
-  ];
-  const requirementItems = [
-    `Hands-on experience with ${primarySkills || "modern web technologies"} in production or strong project work.`,
-    "Comfort with component-driven frontend development, REST APIs, state management and browser debugging.",
-    "Ability to reason through edge cases, communicate tradeoffs clearly and write code that teammates can extend.",
-    "Interest in building practical software for real users rather than only shipping isolated features.",
-  ];
-  const whyJoinItems = [
-    "Work on a visible product area where engineering decisions directly affect customer and team outcomes.",
-    "Join a hiring team that values ownership, clear communication and steady iteration over noisy process.",
-    "Get exposure across product planning, implementation, release feedback and ongoing improvement.",
-  ];
+function JobModal({
+  fallbackJob,
+  isError,
+  isLoading,
+  job,
+  onClose,
+  onRetry,
+}: {
+  fallbackJob: Job;
+  isError: boolean;
+  isLoading: boolean;
+  job: Job;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  const [applyNotice, setApplyNotice] = useState<{ title: string; message: string } | null>(null);
+  const [applyToast, setApplyToast] = useState<string | null>(null);
+  const [applyJob, { isLoading: isApplying }] = useApplyJobMutation();
+  const [getCandidateSession, { isFetching: isCheckingSession }] = useLazyGetCandidateSessionQuery();
+  const visibleJob = isLoading ? fallbackJob : job;
+  const responsibilityItems = job.responsibilities ?? [];
+  const requirementItems = job.requirements ?? [];
+  const benefitItems = job.benefits ?? [];
+  const tagItems = job.tags ?? [];
+  const roleDetails = [cleanValue(job.jobType), cleanValue(job.workMode), cleanValue(job.employmentType)]
+    .filter((value, index, values) => value !== "Not specified" && values.indexOf(value) === index);
+
+  async function handleApply() {
+    let response;
+
+    try {
+      response = await getCandidateSession().unwrap();
+    } catch {
+      setApplyNotice({
+        title: "Login required",
+        message: "Please login first to apply for this job.",
+      });
+      return;
+    }
+
+    const resumeUrl = response.data?.candidate.resumeUrl;
+
+    if (!response.success) {
+      setApplyNotice({
+        title: "Login required",
+        message: "Please login first to apply for this job.",
+      });
+      return;
+    }
+
+    if (!resumeUrl) {
+      setApplyNotice({
+        title: "Resume required",
+        message: "Please upload your resume first before applying for this job.",
+      });
+      return;
+    }
+
+    try {
+      const applyResponse = await applyJob(job.id).unwrap();
+
+      if (!applyResponse.success) {
+        setApplyNotice({
+          title: "Unable to apply",
+          message: applyResponse.message,
+        });
+        return;
+      }
+
+      setApplyToast("Job applied successfully.");
+      window.setTimeout(() => setApplyToast(null), 3000);
+    } catch {
+      setApplyNotice({
+        title: "Unable to apply",
+        message: "Please try again in a moment.",
+      });
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-none bg-slate-950/45 px-2 py-3 sm:px-4 sm:py-6">
@@ -283,18 +587,18 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
             <div className="flex min-w-0 gap-3">
               <CompanyLogo job={job} size="card" />
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-600">{job.company}</p>
+                <p className="text-[13px] font-medium text-slate-600">{cleanValue(visibleJob.company)}</p>
                 <h2 className="mt-1 overflow-hidden text-ellipsis text-lg font-semibold leading-snug text-slate-950 sm:text-xl sm:leading-tight">
-                  {job.title}
+                  {cleanValue(visibleJob.title)}
                 </h2>
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-slate-600">
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 ring-1 ring-slate-100">
                     <FiMapPin className="h-3.5 w-3.5" aria-hidden />
-                    {job.location}
+                    {cleanValue(visibleJob.location)}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 ring-1 ring-slate-100">
                     <FiBriefcase className="h-3.5 w-3.5" aria-hidden />
-                    {job.experience}
+                    {cleanValue(visibleJob.experience)}
                   </span>
                 </div>
               </div>
@@ -312,23 +616,30 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
         </div>
 
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-4 py-4 sm:px-5 sm:py-5">
+          {isLoading ? (
+            <ModalState message="Loading job details..." />
+          ) : isError ? (
+            <ModalState actionLabel="Retry" message="Unable to load job details." onAction={onRetry} />
+          ) : (
+            <>
           <div className="grid gap-2 sm:grid-cols-4">
-            <SummaryTile label="Job type" value="Full time" />
-            <SummaryTile label="Work mode" value={workMode} />
-            <SummaryTile label="Founded" value={job.founded} />
-            <SummaryTile label="Employees" value={job.size} />
+            <SummaryTile label="Job type" value={cleanValue(job.jobType)} />
+            <SummaryTile label="Work mode" value={cleanValue(job.workMode)} />
+            <SummaryTile label="Founded" value={cleanValue(job.founded)} />
+            <SummaryTile label="Openings" value={cleanValue(job.openings)} />
+          </div>
+
+          <div className="mt-2 grid gap-2 sm:grid-cols-4">
+            <SummaryTile label="Salary" value={formatSalary(job.salaryRange)} />
+            <SummaryTile label="Education" value={cleanValue(job.education)} />
+            <SummaryTile label="Notice" value={cleanValue(job.noticePeriod)} />
+            <SummaryTile label="Applicants" value={cleanValue(job.applicantsCount)} />
           </div>
 
           <section className="mt-5 border-t border-slate-100 pt-5">
-            <h3 className="text-base font-semibold text-slate-900">About {job.company}</h3>
+            <h3 className="text-base font-semibold text-slate-900">About {cleanValue(job.company)}</h3>
             <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
-              <p>{job.description}</p>
-              <p>
-                The team is looking for people who can understand the business context,
-                build carefully and keep improving the product after release. You will work
-                close to real user problems instead of being limited to narrow implementation
-                tickets.
-              </p>
+              <p>{cleanValue(job.description)}</p>
             </div>
           </section>
 
@@ -336,86 +647,121 @@ function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
             <h3 className="text-base font-semibold text-slate-900">Job description</h3>
             <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
               <p>
-                <b>Function:</b> Software Engineering - {job.title}
+                <b>Role:</b> {cleanValue(job.title)}
               </p>
               <p>
-                This opening is best suited for someone who enjoys building complete product
-                flows, understands both frontend polish and backend reliability, and can
-                move comfortably between planning, coding, testing and iteration.
+                <b>Experience:</b> {cleanValue(job.experience)}
+              </p>
+              <p>
+                <b>Industry:</b> {cleanValue(job.industry)}
+              </p>
+              <p>
+                <b>Interview process:</b> {cleanValue(job.interviewProcess)}
+              </p>
+              <p>
+                <b>Reporting to:</b> {cleanValue(job.reportingTo)}
               </p>
             </div>
           </section>
 
-          <section className="mt-5 border-t border-slate-100 pt-5">
-            <h3 className="text-base font-semibold text-slate-900">What you will do</h3>
-            <ul className="mt-2 space-y-2.5">
-              {responsibilityItems.map((item) => (
-                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
-                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="mt-5 border-t border-slate-100 pt-5">
-            <h3 className="text-base font-semibold text-slate-900">What they are looking for</h3>
-            <ul className="mt-2 space-y-2.5">
-              {requirementItems.map((item) => (
-                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
-                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="mt-5 border-t border-slate-100 pt-5">
-            <h3 className="text-base font-semibold text-slate-900">Why this role stands out</h3>
-            <div className="mt-2 space-y-3 text-[13px] leading-6 text-slate-600">
-              <p>
-                The role gives you room to contribute beyond task execution. You can shape
-                implementation details, improve product quality and learn how the company
-                converts customer needs into working software.
-              </p>
-            </div>
-            <ul className="mt-2 space-y-2.5">
-              {whyJoinItems.map((item) => (
-                <li key={item} className="flex gap-2.5 text-[13px] leading-6 text-slate-600">
-                  <FiCheckCircle className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <DetailList title="What you will do" items={responsibilityItems} />
+          <DetailList title="What they are looking for" items={requirementItems} />
+          <DetailList title="Benefits" items={benefitItems} />
 
           <section className="mt-5 border-t border-slate-100 pt-5">
             <h3 className="text-base font-semibold text-slate-900">Skills</h3>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {job.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-md bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
-                >
-                  {tag}
-                </span>
-              ))}
+              {tagItems.length > 0
+                ? tagItems.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
+                    >
+                      {tag}
+                    </span>
+                  ))
+                : "Not specified"}
             </div>
           </section>
+
+          <section className="mt-5 border-t border-slate-100 pt-5">
+            <h3 className="text-base font-semibold text-slate-900">Role details</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {roleDetails.length > 0
+                ? roleDetails.map((detail) => (
+                    <span
+                      key={detail}
+                      className="rounded-md bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-100"
+                    >
+                      {detail}
+                    </span>
+                  ))
+                : "Not specified"}
+            </div>
+            <div className="mt-3 text-[13px] leading-6 text-slate-600">
+              <p>
+                <b>Recruiter:</b> {cleanValue(job.recruiter)}
+              </p>
+              <p>
+                <b>Recruiter role:</b> {cleanValue(job.recruiterRole)}
+              </p>
+            </div>
+          </section>
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-xs font-medium text-slate-500">
-            Applying shares your profile with {job.company}.
+            Applying shares your profile with {cleanValue(visibleJob.company)}.
           </p>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-            <button className="w-full rounded-md bg-slate-950 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:w-auto" type="button">
-              Apply now
+            <button
+              className="w-full rounded-md bg-slate-950 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+              disabled={isCheckingSession || isApplying}
+              onClick={handleApply}
+              type="button"
+            >
+              {isCheckingSession ? "Checking..." : isApplying ? "Applying..." : "Apply now"}
               <FiExternalLink className="ml-2 inline h-4 w-4 align-[-2px]" aria-hidden />
             </button>
           </div>
         </div>
       </section>
+
+      {applyNotice ? (
+        <section className="absolute inset-x-3 top-1/2 z-10 mx-auto w-full max-w-md -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-950/20 sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">{applyNotice.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{applyNotice.message}</p>
+            </div>
+            <button
+              aria-label="Close apply message"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              onClick={() => setApplyNotice(null)}
+              type="button"
+            >
+              <FiX className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <button
+              className="rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              onClick={() => setApplyNotice(null)}
+              type="button"
+            >
+              Got it
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {applyToast ? (
+        <div className="fixed bottom-4 left-4 z-20 rounded-lg border border-emerald-100 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-xl shadow-slate-950/15">
+          {applyToast}
+        </div>
+      ) : null}
     </div>
   );
 }

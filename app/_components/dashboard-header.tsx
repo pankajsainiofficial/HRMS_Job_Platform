@@ -1,40 +1,70 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FiAlertCircle, FiBriefcase, FiLogOut, FiUpload, FiUser, FiX } from "react-icons/fi";
+import { useGetCandidateSessionQuery, useUploadCandidateResumeMutation } from "../_redux/api/AuthApi";
 
 const navItems = [
   { label: "Jobs", href: "/", badge: "15", icon: FiBriefcase },
   { label: "Profile", href: "/profile", icon: FiUser },
 ];
 
+const AUTH_STORAGE_KEY = "hireondeck-auth";
+
 export function DashboardHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-  const [isSignedIn, setIsSignedIn] = useState(true);
+  const [isLocallySignedOut, setIsLocallySignedOut] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<{ title: string; message: string } | null>(null);
+  const { data: candidateSession, refetch: refetchCandidateSession } = useGetCandidateSessionQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const [uploadCandidateResume, { isLoading: isUploadingResume }] = useUploadCandidateResumeMutation();
+  const isSignedIn = !isLocallySignedOut && Boolean(candidateSession?.success);
 
-  useEffect(() => {
-    const syncAuthState = () => {
-      setIsSignedIn(localStorage.getItem("instahyre-auth") !== "signed-out");
-    };
+  const handleResumeUpload = async (file: File) => {
+    if (!isSignedIn) {
+      setUploadMessage({
+        title: "Login required",
+        message: "Please login first before uploading your resume.",
+      });
+      return;
+    }
 
-    syncAuthState();
-    window.addEventListener("storage", syncAuthState);
-    window.addEventListener("instahyre-auth-change", syncAuthState);
+    const formData = new FormData();
+    formData.append("resume", file);
 
-    return () => {
-      window.removeEventListener("storage", syncAuthState);
-      window.removeEventListener("instahyre-auth-change", syncAuthState);
-    };
-  }, []);
+    try {
+      const response = await uploadCandidateResume(formData).unwrap();
+
+      if (!response.success) {
+        setUploadMessage({
+          title: "Upload failed",
+          message: response.message,
+        });
+        return;
+      }
+
+      setUploadMessage({
+        title: "Resume uploaded",
+        message: response.message,
+      });
+      refetchCandidateSession();
+    } catch {
+      setUploadMessage({
+        title: "Upload failed",
+        message: "Unable to upload resume.",
+      });
+    }
+  };
 
   const handleConfirmSignOut = () => {
-    localStorage.setItem("instahyre-auth", "signed-out");
-    window.dispatchEvent(new Event("instahyre-auth-change"));
-    setIsSignedIn(false);
+    localStorage.setItem(AUTH_STORAGE_KEY, "signed-out");
+    setIsLocallySignedOut(true);
     setShowSignOutConfirm(false);
     router.push("/profile");
   };
@@ -43,16 +73,23 @@ export function DashboardHeader() {
     <>
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm shadow-slate-200/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-3 px-3 py-3 sm:px-4 xl:flex-row xl:items-center xl:justify-between">
-          <Link className="flex w-fit items-center gap-3" href="/">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-slate-950 text-sm font-semibold text-white sm:h-10 sm:w-10 sm:text-base">
-              IH
+          <Link className="flex w-fit items-center gap-3.5" href="/">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-[68px] sm:w-[68px]">
+              <Image
+                alt="HireOnDeck logo"
+                className="h-full w-full object-contain"
+                height={68}
+                priority
+                src="/logo.png"
+                width={68}
+              />
             </span>
-            <span className="flex flex-col">
-              <span className="text-base font-semibold leading-none text-slate-950 sm:text-lg">
-                Instahyre
+            <span className="flex min-w-0 flex-col justify-center">
+              <span className="text-lg font-bold leading-tight text-slate-950 sm:text-xl">
+                HireOnDeck
               </span>
-              <span className="mt-1 hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:block">
-                Candidate Workspace
+              <span className="mt-1 hidden text-[10px] font-semibold uppercase leading-4 tracking-[0.18em] text-slate-400 sm:block">
+                Opportunities open. Careers begin.
               </span>
             </span>
           </Link>
@@ -61,10 +98,28 @@ export function DashboardHeader() {
             aria-label="Primary navigation"
             className="thin-scrollbar flex w-full max-w-full items-center gap-1.5 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold uppercase tracking-[0.06em] xl:w-auto"
           >
-            <label className="flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-md bg-slate-950 px-3 text-white transition hover:bg-slate-800 sm:h-10 sm:px-4">
+            <label
+              className={`flex h-9 shrink-0 items-center gap-2 rounded-md bg-slate-950 px-3 text-white transition sm:h-10 sm:px-4 ${
+                isUploadingResume ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-slate-800"
+              }`}
+            >
               <FiUpload className="h-3.5 w-3.5" aria-hidden />
-              <span className="whitespace-nowrap">Upload resume</span>
-              <input className="sr-only" type="file" accept=".pdf,.doc,.docx" />
+              <span className="whitespace-nowrap">{isUploadingResume ? "Uploading..." : "Upload resume"}</span>
+              <input
+                accept=".pdf,.doc,.docx"
+                className="sr-only"
+                disabled={isUploadingResume}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+
+                  if (file) {
+                    handleResumeUpload(file);
+                  }
+
+                  event.target.value = "";
+                }}
+                type="file"
+              />
             </label>
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -90,15 +145,16 @@ export function DashboardHeader() {
                 </Link>
               );
             })}
-            <button
-              className="flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-slate-600 transition hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-55 sm:h-10 sm:px-3.5"
-              disabled={!isSignedIn}
-              onClick={() => setShowSignOutConfirm(true)}
-              type="button"
-            >
-              <FiLogOut className="h-3.5 w-3.5" aria-hidden />
-              <span className="whitespace-nowrap">Sign Out</span>
-            </button>
+            {isSignedIn ? (
+              <button
+                className="flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-slate-600 transition hover:bg-white hover:text-slate-900 hover:shadow-sm sm:h-10 sm:px-3.5"
+                onClick={() => setShowSignOutConfirm(true)}
+                type="button"
+              >
+                <FiLogOut className="h-3.5 w-3.5" aria-hidden />
+                <span className="whitespace-nowrap">Sign Out</span>
+              </button>
+            ) : null}
           </nav>
         </div>
       </header>
@@ -141,6 +197,36 @@ export function DashboardHeader() {
                 type="button"
               >
                 Yes, sign out
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {uploadMessage ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-3 py-5 sm:px-4">
+          <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-950/15 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">{uploadMessage.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{uploadMessage.message}</p>
+              </div>
+              <button
+                aria-label="Close resume upload message"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => setUploadMessage(null)}
+                type="button"
+              >
+                <FiX className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                className="rounded-md bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                onClick={() => setUploadMessage(null)}
+                type="button"
+              >
+                Got it
               </button>
             </div>
           </section>

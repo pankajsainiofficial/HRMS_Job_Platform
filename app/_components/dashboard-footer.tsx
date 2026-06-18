@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FiBriefcase } from "react-icons/fi";
+import Image from "next/image";
 
 const footerColumns = [
   {
@@ -15,7 +15,7 @@ const footerColumns = [
     links: ["Post Your Jobs", "Success Stories", "Product Academy", "Resources"],
   },
   {
-    title: "Instahyre",
+    title: "HireOnDeck",
     links: ["Workspace", "About", "Privacy", "Terms"],
   },
   {
@@ -30,11 +30,14 @@ export function DashboardFooter() {
       <div className="mx-auto w-full max-w-[1180px] px-3 py-7 sm:px-4 sm:py-9">
         <div className="grid gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8">
           <div>
-            <Link className="flex w-fit items-center gap-3" href="/">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-slate-950 text-sm font-semibold text-white">
-                <FiBriefcase className="h-4 w-4" aria-hidden />
-              </span>
-              <span className="text-lg font-semibold text-slate-950">Instahyre</span>
+            <Link aria-label="HireOnDeck home" className="flex w-fit items-center" href="/">
+              <Image
+                alt="HireOnDeck"
+                className="h-20 w-20 object-contain"
+                height={80}
+                src="/logo.png"
+                width={80}
+              />
             </Link>
             <p className="mt-3 text-sm leading-6 text-slate-500">
               Matched jobs and candidate workspace for modern hiring.
@@ -60,7 +63,7 @@ export function DashboardFooter() {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>Copyright 2026 Instahyre style dashboard.</p>
+          <p>Copyright 2026 HireOnDeck dashboard.</p>
           <div className="flex flex-wrap gap-4">
             <Link className="hover:text-slate-900" href="#">
               Privacy
