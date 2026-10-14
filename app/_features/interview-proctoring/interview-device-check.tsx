@@ -22,6 +22,7 @@ type FaceMonitorProps = {
   sessionId: string;
   token: string;
   websocketBaseUrl: string;
+  onViolationCount?: (count: number) => void;
 };
 
 type CheckState = "idle" | "checking" | "ready" | "error";
@@ -267,7 +268,7 @@ export function InterviewDeviceCheck({ onReadyChange }: DeviceCheckProps) {
   );
 }
 
-export function InterviewFaceMonitor({ interviewType, sessionId, token, websocketBaseUrl }: FaceMonitorProps) {
+export function InterviewFaceMonitor({ interviewType, sessionId, token, websocketBaseUrl, onViolationCount }: FaceMonitorProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<MonitorState>("connecting");
   const [message, setMessage] = useState("Starting identity monitoring…");
@@ -334,6 +335,7 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
         } else if (payload.type === "warning" || payload.success === false) {
           setState("warning");
           setMessage(payload.message ?? payload.error?.message ?? "Face could not be verified. Stay centered in the camera.");
+          if (typeof payload.data?.violationCount === "number") onViolationCount?.(payload.data.violationCount);
         }
       });
       socket.addEventListener("close", (event) => {
@@ -389,7 +391,7 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
       socket?.close(1000, "Interview view closed");
       stream?.getTracks().forEach((track) => track.stop());
     };
-  }, [interviewType, sessionId, token, websocketBaseUrl]);
+  }, [interviewType, onViolationCount, sessionId, token, websocketBaseUrl]);
 
   const tone = state === "verified" ? "bg-emerald-500/15 text-emerald-300" : state === "warning" || state === "offline" ? "bg-amber-500/15 text-amber-200" : "bg-white/10 text-slate-200";
 
@@ -421,6 +423,6 @@ function deviceErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "The device check could not be completed.";
 }
 
-function safeJson(value: unknown): { success?: boolean; type?: string; message?: string; error?: { message?: string } } | null {
+function safeJson(value: unknown): { success?: boolean; type?: string; message?: string; error?: { message?: string }; data?: { violationCount?: number } } | null {
   try { return JSON.parse(String(value)); } catch { return null; }
 }

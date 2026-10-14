@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+if (!siteUrl) {
+  throw new Error("NEXT_PUBLIC_SITE_URL must be configured");
+}
+
 export const siteConfig = {
   name: "HireOnDeck",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.hireondeck.com",
+  url: siteUrl.replace(/\/+$/, ""),
   description:
     "Find software engineering, full-stack, backend, frontend, remote and startup jobs across India with HireOnDeck.",
   ogImage: "/logo.png",

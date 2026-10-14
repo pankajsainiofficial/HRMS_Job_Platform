@@ -346,7 +346,8 @@ function InterviewGate({ error, loading, onStart, onTryAgain, termsAccepted, set
               <InterviewIntegrityChecklist />
               <InterviewDeviceCheck onReadyChange={setDevicesReady} />
               <label className="mt-7 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50"><input checked={termsAccepted} className="mt-1 h-5 w-5 accent-blue-600" onChange={(event) => setTermsAccepted(event.target.checked)} type="checkbox" /><span className="text-sm leading-6 text-slate-700">I confirm that I am the invited candidate and will complete this assessment independently.</span></label>
-              <button className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" disabled={!termsAccepted || !devicesReady || loading} onClick={onStart} type="button">{loading ? <><FiLoader className="animate-spin" aria-hidden /> Verifying schedule…</> : <>Join coding round <FiArrowRight aria-hidden /></>}</button>
+              <button className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" disabled={!termsAccepted || !devicesReady || loading} onClick={onStart} type="button">{loading ? <><FiLoader className="animate-spin" aria-hidden /> Preparing security check…</> : <>Continue to agent verification <FiArrowRight aria-hidden /></>}</button>
+              {devicesReady ? <p className="mt-2 text-center text-xs text-slate-500">Next: install or connect the integrity agent. Your coding timer has not started.</p> : null}
               {!devicesReady ? <p className="mt-2 text-center text-xs text-slate-500">Complete the camera and microphone check to enable joining.</p> : null}
             </>
           )}

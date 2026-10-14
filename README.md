@@ -5,7 +5,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 Copy `.env.example` to `.env.local`, then set the backend URL in one place:
 
 ```env
-BACKEND_URL=http://localhost:4000
+BACKEND_URL=https://your-backend.example.com
+NEXT_PUBLIC_SITE_URL=https://your-job-portal.example.com
 NEXT_PUBLIC_INTEGRITY_AGENT_WINDOWS_URL=https://downloads.example.com/zylosis-integrity-agent-windows.exe
 NEXT_PUBLIC_INTEGRITY_AGENT_MACOS_URL=https://downloads.example.com/zylosis-integrity-agent-macos.dmg
 NEXT_PUBLIC_INTEGRITY_AGENT_LINUX_URL=https://downloads.example.com/zylosis-integrity-agent-linux
@@ -29,7 +30,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the URL printed by Next.js in your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

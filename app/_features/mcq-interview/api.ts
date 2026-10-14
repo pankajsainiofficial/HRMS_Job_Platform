@@ -10,6 +10,7 @@ async function request<T>(path: string, token: string, init?: RequestInit) {
 }
 
 export const acceptMcqInvite = (token: string) => request<{ session: McqSession }>(`invites/${encodeURIComponent(token)}/accept`, token, { method: "POST", body: JSON.stringify({ acceptedTerms: true }) });
+export const getSavedMcqQuestions = (sessionId: string, token: string) => request<{ questions: McqQuestion[]; remainingSeconds: number; generatedCount: number; totalQuestions: number; totalAnswered: number; status: string }>(`sessions/${encodeURIComponent(sessionId)}/questions`, token);
 export const getMcqQuestions = (sessionId: string, token: string, batchSize: number) => request<{ questions: McqQuestion[]; remainingSeconds: number; generatedCount: number; totalQuestions: number }>(`sessions/${encodeURIComponent(sessionId)}/questions`, token, { method: "POST", body: JSON.stringify({ batchSize }) });
 export const saveMcqAnswers = (sessionId: string, token: string, answers: Array<{ questionId: string; selectedOptionKey: string }>) => request<{ saved: number; totalAnswered: number; remainingSeconds: number }>(`sessions/${encodeURIComponent(sessionId)}/answers`, token, { method: "POST", body: JSON.stringify({ answers }) });
 export const submitMcqInterview = (sessionId: string, token: string) => request<McqSession>(`sessions/${encodeURIComponent(sessionId)}/submit`, token, { method: "POST" });

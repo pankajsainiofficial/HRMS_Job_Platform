@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiAlertTriangle, FiCheckCircle, FiCopy, FiDownload, FiLoader, FiLock, FiRefreshCw } from "react-icons/fi";
 
 import { createAgentPairing, getIntegrityStatus, type IntegrityStatus } from "./integrity-api";
@@ -10,6 +10,7 @@ type Props = {
   sessionId: string;
   token: string;
   onReady?: () => void;
+  onViolationCount?: (count: number) => void;
 };
 
 const downloadUrls = {
@@ -18,23 +19,32 @@ const downloadUrls = {
   linux: process.env.NEXT_PUBLIC_INTEGRITY_AGENT_LINUX_URL ?? "",
 };
 
-export function InterviewAgentGuard({ interviewType, sessionId, token, onReady }: Props) {
+export function InterviewAgentGuard({ interviewType, sessionId, token, onReady, onViolationCount }: Props) {
   const [status, setStatus] = useState<IntegrityStatus | null>(null);
   const [pairing, setPairing] = useState<{ pairingToken: string; launchUrl: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const readyNotified = useRef(false);
   const platform = useMemo(() => detectPlatform(), []);
 
   const refresh = useCallback(async () => {
     try {
       const next = await getIntegrityStatus(interviewType, sessionId, token);
       setStatus(next);
+      onViolationCount?.(next.violationCount);
       setError("");
-      if (next.ready) onReady?.();
+      if (next.ready && !readyNotified.current) {
+        readyNotified.current = true;
+        onReady?.();
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not verify the integrity agent");
     }
-  }, [interviewType, onReady, sessionId, token]);
+  }, [interviewType, onReady, onViolationCount, sessionId, token]);
+
+  useEffect(() => {
+    readyNotified.current = false;
+  }, [interviewType, sessionId, token]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => void refresh(), 0);

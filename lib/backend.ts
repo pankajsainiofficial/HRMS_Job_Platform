@@ -1,12 +1,10 @@
-const DEFAULT_BACKEND_URL =
-  process.env.NODE_ENV === "development"
-    ? "http://localhost:4000"
-    : "https://hrms-product-backend.onrender.com";
+const configuredBackendUrl = process.env.BACKEND_URL?.trim();
 
-const BACKEND_URL = (process.env.BACKEND_URL ?? DEFAULT_BACKEND_URL).replace(
-  /\/+$/,
-  "",
-);
+if (!configuredBackendUrl) {
+  throw new Error("BACKEND_URL must be configured");
+}
+
+const BACKEND_URL = configuredBackendUrl.replace(/\/+$/, "");
 
 export function getBackendUrl(path: string) {
   return new URL(path.replace(/^\/+/, ""), `${BACKEND_URL}/`);
