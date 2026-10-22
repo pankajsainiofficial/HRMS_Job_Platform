@@ -98,6 +98,8 @@ export function HomePage() {
     refetch,
   } = useGetJobsQuery({ limit: JOBS_PAGE_LIMIT });
   const jobs = useMemo(() => getUniqueJobs(jobsData?.pages.flatMap((page) => page.jobs) ?? []), [jobsData]);
+  const isInitialJobsError = isError && jobs.length === 0;
+  const isNextPageError = isError && jobs.length > 0;
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [keywordInput, setKeywordInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
@@ -188,7 +190,7 @@ export function HomePage() {
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
 
-    if (!loadMoreElement || !hasNextPage || isFetching || isFetchingNextPage) {
+    if (!loadMoreElement || !hasNextPage || isError || isFetching || isFetchingNextPage) {
       return;
     }
 
@@ -206,7 +208,7 @@ export function HomePage() {
     return () => {
       observer.disconnect();
     };
-  }, [fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, selectedJob, sortedJobs.length]);
+  }, [fetchNextPage, hasNextPage, isError, isFetching, isFetchingNextPage, selectedJob, sortedJobs.length]);
 
   useEffect(() => {
     if (!isFilterDrawerOpen) {
@@ -382,7 +384,7 @@ export function HomePage() {
                       <option value="applicants">Most applicants</option>
                     </select>
                   </label>
-                  {isError ? (
+                  {isInitialJobsError ? (
                     <button
                       className="text-xs font-semibold text-slate-700 underline underline-offset-4"
                       onClick={() => refetch()}
@@ -395,12 +397,12 @@ export function HomePage() {
               </div>
 
               {isLoading ? <JobsState message="Fetching the latest published jobs..." /> : null}
-              {isError ? <JobsState message="Unable to load jobs. Please try again." /> : null}
-              {!isLoading && !isError && sortedJobs.length === 0 ? (
+              {isInitialJobsError ? <JobsState message="Unable to load jobs. Please try again." /> : null}
+              {!isLoading && !isInitialJobsError && sortedJobs.length === 0 ? (
                 <JobsState message="No jobs match the selected filters." />
               ) : null}
 
-              {!isLoading && !isError ? (
+              {!isLoading && !isInitialJobsError ? (
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {sortedJobs.map((job) => (
                     <JobCard
@@ -417,6 +419,14 @@ export function HomePage() {
               {!isLoading && !isError && hasNextPage ? <div ref={loadMoreRef} className="h-px" /> : null}
               {isFetchingNextPage ? (
                 <p className="mt-4 text-center text-sm font-medium text-slate-400">Loading more roles...</p>
+              ) : null}
+              {isNextPageError ? (
+                <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-center" role="status">
+                  <p className="text-sm font-medium text-amber-900">More jobs could not be loaded. The jobs already shown are still available.</p>
+                  <button className="inline-flex min-h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-700" onClick={() => void fetchNextPage()} type="button">
+                    Try loading more
+                  </button>
+                </div>
               ) : null}
             </section>
           </div>

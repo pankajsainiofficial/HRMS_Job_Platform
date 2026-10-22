@@ -8,14 +8,15 @@ export async function GET(request: Request) {
         Cookie: request.headers.get("cookie") ?? "",
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
     });
     return new Response(await response.text(), {
       status: response.status,
       headers: { "content-type": response.headers.get("content-type") ?? "application/json" },
     });
-  } catch {
+  } catch (error) {
     return Response.json(
-      { success: false, message: "Unable to fetch interviews", data: { interviews: [] } },
+      { success: false, message: error instanceof Error && error.name === "AbortError" ? "The interview calendar took too long to respond. Please reload it." : "The interview calendar service is temporarily unavailable. Your schedules have not been changed.", data: { interviews: [] } },
       { status: 502 },
     );
   }

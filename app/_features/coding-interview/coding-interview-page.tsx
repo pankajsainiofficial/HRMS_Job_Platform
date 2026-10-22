@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   FiAlertCircle,
+  FiAlertTriangle,
   FiArrowLeft,
   FiArrowRight,
   FiCheck,
@@ -44,7 +45,9 @@ export function CodingInterviewPage({ token, websocketBaseUrl }: { token: string
   const [action, setAction] = useState<Action>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [devicesReady, setDevicesReady] = useState(false);
+  const [integrityViolations, setIntegrityViolations] = useState(0);
   const autoSubmitStarted = useRef(false);
+  const violationSubmitStarted = useRef(false);
   const integrityStarting = useRef(false);
 
   const currentProblem = problems[currentIndex];
@@ -81,6 +84,19 @@ export function CodingInterviewPage({ token, websocketBaseUrl }: { token: string
       })
       .finally(() => setAction(null));
   }, [phase, remainingSeconds, session, token]);
+
+  useEffect(() => {
+    if (phase !== "assessment" || integrityViolations <= 5 || !session || violationSubmitStarted.current) return;
+    violationSubmitStarted.current = true;
+    setAction("finish");
+    void finishCodingInterview(session.id, token)
+      .then(() => setPhase("submitted"))
+      .catch((caught) => {
+        setError(getErrorMessage(caught));
+        setPhase("error");
+      })
+      .finally(() => setAction(null));
+  }, [integrityViolations, phase, session, token]);
 
   async function handleStart() {
     if (!termsAccepted || !devicesReady) return;
@@ -230,9 +246,9 @@ export function CodingInterviewPage({ token, websocketBaseUrl }: { token: string
 
   return (
     <main className="flex min-h-screen flex-col bg-[#eef2f8] text-slate-800">
-      {session ? <InterviewAgentGuard interviewType="coding" sessionId={session.id} token={token} /> : null}
+      {session ? <InterviewAgentGuard interviewType="coding" sessionId={session.id} token={token} onViolationCount={setIntegrityViolations} /> : null}
       {session ? <InterviewSecurityGuard interviewType="coding" sessionId={session.id} token={token} /> : null}
-      {session ? <InterviewFaceMonitor interviewType="coding" sessionId={session.id} token={token} websocketBaseUrl={websocketBaseUrl} /> : null}
+      {session ? <InterviewFaceMonitor interviewType="coding" sessionId={session.id} token={token} websocketBaseUrl={websocketBaseUrl} onViolationCount={setIntegrityViolations} /> : null}
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b0d12] px-4 py-3 text-white sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white p-1">
@@ -259,6 +275,13 @@ export function CodingInterviewPage({ token, websocketBaseUrl }: { token: string
           </button>
         </div>
       </header>
+
+      {integrityViolations > 0 ? (
+        <div aria-live="assertive" className={`mx-3 mt-3 flex items-start gap-3 rounded-xl border p-4 sm:mx-6 ${integrityViolations >= 5 ? "border-rose-300 bg-rose-50 text-rose-900" : "border-amber-300 bg-amber-50 text-amber-950"}`} role="alert">
+          <FiAlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          <div><p className="font-bold">Integrity violation {integrityViolations} recorded</p><p className="mt-1 text-sm leading-6">{integrityViolations >= 5 ? "Final warning: one more camera, microphone, browser, or device violation will automatically submit this coding interview." : `${5 - integrityViolations} warning${5 - integrityViolations === 1 ? "" : "s"} remaining before the final warning. Keep your face visible, stay silent, remain in fullscreen, and close restricted applications.`}</p></div>
+        </div>
+      ) : null}
 
       <div className="grid flex-1 gap-3 p-3 lg:grid-cols-[minmax(320px,42%)_1fr] lg:overflow-hidden">
         <section className="flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-88px)]">
@@ -346,8 +369,8 @@ function InterviewGate({ error, loading, onStart, onTryAgain, termsAccepted, set
               <InterviewIntegrityChecklist />
               <InterviewDeviceCheck onReadyChange={setDevicesReady} />
               <label className="mt-7 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50"><input checked={termsAccepted} className="mt-1 h-5 w-5 accent-blue-600" onChange={(event) => setTermsAccepted(event.target.checked)} type="checkbox" /><span className="text-sm leading-6 text-slate-700">I confirm that I am the invited candidate and will complete this assessment independently.</span></label>
-              <button className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" disabled={!termsAccepted || !devicesReady || loading} onClick={onStart} type="button">{loading ? <><FiLoader className="animate-spin" aria-hidden /> Preparing security check…</> : <>Continue to agent verification <FiArrowRight aria-hidden /></>}</button>
-              {devicesReady ? <p className="mt-2 text-center text-xs text-slate-500">Next: install or connect the integrity agent. Your coding timer has not started.</p> : null}
+              <button className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" disabled={!termsAccepted || !devicesReady || loading} onClick={onStart} type="button">{loading ? <><FiLoader className="animate-spin" aria-hidden /> Preparing security check…</> : <>Continue to security verification <FiArrowRight aria-hidden /></>}</button>
+              {devicesReady ? <p className="mt-2 text-center text-xs text-slate-500">Next: install or connect the security app. Your coding timer has not started.</p> : null}
               {!devicesReady ? <p className="mt-2 text-center text-xs text-slate-500">Complete the camera and microphone check to enable joining.</p> : null}
             </>
           )}
@@ -378,5 +401,8 @@ function formatRunResult(result: Record<string, unknown>) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to continue the coding interview";
+  const value = error instanceof Error ? error.message : "";
+  if (!value || /internal server error|failed query|fetch failed|networkerror/i.test(value)) return "We could not connect to the coding interview service. Your saved work is safe; check your connection and try again.";
+  if (/face recognition service is unavailable/i.test(value)) return "Live identity verification is temporarily unavailable. Keep the camera open and try again in a moment.";
+  return value;
 }

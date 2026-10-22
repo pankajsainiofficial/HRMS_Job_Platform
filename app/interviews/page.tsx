@@ -6,14 +6,15 @@ import { FiArrowLeft, FiArrowRight, FiBriefcase, FiCalendar, FiClock, FiCode, Fi
 import { DashboardFooter } from "../_components/dashboard-footer";
 import { DashboardHeader } from "../_components/dashboard-header";
 import { useGetCandidateInterviewsQuery, useGetCandidateSessionQuery, type CandidateInterview } from "../_redux/api/AuthApi";
+import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
 export default function InterviewsPage() {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [now, setNow] = useState<number | null>(null);
   const { data: session, isLoading: sessionLoading } = useGetCandidateSessionQuery();
   const signedIn = Boolean(session?.success && session.data?.candidate);
-  const { data, isLoading, isError, refetch } = useGetCandidateInterviewsQuery(undefined, { skip: !signedIn, refetchOnMountOrArgChange: true });
-  const interviews = useMemo(() => data?.data?.interviews ?? [], [data]);
+  const { data, error: interviewsError, isLoading, isError, refetch } = useGetCandidateInterviewsQuery(undefined, { skip: !signedIn, refetchOnMountOrArgChange: true });
+  const interviews = useMemo(() => (data?.data?.interviews ?? []).filter(hasValidSchedule), [data]);
   const interviewsByDate = useMemo(() => groupByLocalDate(interviews), [interviews]);
   const upcoming = useMemo(() => interviews.filter((item) => now === null || interviewEnd(item).getTime() >= now).sort(bySchedule), [interviews, now]);
   const upcomingByCompany = useMemo(() => groupByCompany(upcoming), [upcoming]);
@@ -46,7 +47,7 @@ export default function InterviewsPage() {
             <Link className="mt-5 inline-flex h-11 items-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-500" href="/profile">Sign in</Link>
           </section>
         ) : isLoading ? <InterviewsSkeleton /> : isError ? (
-          <section className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-6"><h2 className="font-bold text-rose-900">Could not load interviews</h2><button className="mt-3 h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white" onClick={() => void refetch()} type="button">Try again</button></section>
+          <section className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-6" role="alert"><h2 className="font-bold text-rose-900">Could not load your interview calendar</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-rose-800">{interviewErrorMessage(interviewsError)}</p><div className="mt-4 flex flex-wrap gap-3"><button className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white" onClick={() => void refetch()} type="button">Reload calendar</button>{isUnauthorizedError(interviewsError) ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-900" href="/profile">Sign in again</Link> : null}</div></section>
         ) : (
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -103,3 +104,13 @@ function interviewEnd(interview: CandidateInterview) { return new Date(new Date(
 function bySchedule(a: CandidateInterview, b: CandidateInterview) { return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(); }
 function displayCompanyName(companyName: string | null) { return companyName?.trim() || "Hiring company"; }
 function groupByCompany(interviews: CandidateInterview[]) { const groups = new Map<string, CandidateInterview[]>(); for (const interview of interviews) { const companyName = displayCompanyName(interview.companyName); groups.set(companyName, [...(groups.get(companyName) ?? []), interview]); } return Array.from(groups.entries()); }
+function hasValidSchedule(interview: CandidateInterview) { return Boolean(interview?.id && interview.jobTitle && Number.isFinite(new Date(interview.scheduledAt).getTime()) && Number.isFinite(Number(interview.durationMinutes))); }
+function isUnauthorizedError(error: unknown) { return Boolean(error && typeof error === "object" && "status" in error && (error as FetchBaseQueryError).status === 401); }
+function interviewErrorMessage(error: unknown) {
+  if (isUnauthorizedError(error)) return "Your candidate session has expired. Sign in again to securely reload your private interview schedule.";
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as FetchBaseQueryError & { data?: unknown }).data;
+    if (data && typeof data === "object" && "message" in data && typeof data.message === "string") return data.message;
+  }
+  return "The interview service could not be reached. Your scheduled interviews are unchanged; reload the calendar in a moment.";
+}

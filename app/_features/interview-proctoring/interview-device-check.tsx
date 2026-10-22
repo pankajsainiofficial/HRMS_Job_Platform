@@ -148,6 +148,7 @@ export function InterviewDeviceCheck({ onReadyChange }: DeviceCheckProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const voiceDetectorRef = useRef<{ destroy: () => Promise<void> } | null>(null);
   const animationRef = useRef<number | null>(null);
   const [state, setState] = useState<CheckState>("idle");
   const [message, setMessage] = useState("Run the check before joining your interview.");
@@ -156,6 +157,8 @@ export function InterviewDeviceCheck({ onReadyChange }: DeviceCheckProps) {
   const stopMedia = useCallback(() => {
     if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
     animationRef.current = null;
+    if (voiceDetectorRef.current) void voiceDetectorRef.current.destroy();
+    voiceDetectorRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (audioContextRef.current) void audioContextRef.current.close();
@@ -205,8 +208,39 @@ export function InterviewDeviceCheck({ onReadyChange }: DeviceCheckProps) {
       const microphoneReady = stream.getAudioTracks().some((track) => track.readyState === "live");
       if (!cameraReady || !microphoneReady) throw new Error("Camera and microphone must both be available.");
 
+      setMessage("Say ‘microphone test’ clearly to verify live speech detection.");
+      const audioTrack = stream.getAudioTracks()[0];
+      const { MicVAD } = await import("@ricky0123/vad-web");
+      let resolveSpeechTest: (detected: boolean) => void = () => undefined;
+      const speechTest = new Promise<boolean>((resolve) => { resolveSpeechTest = resolve; });
+      const detector = await MicVAD.new({
+        model: "v5",
+        baseAssetPath: "/vad/",
+        onnxWASMBasePath: "/vad/",
+        audioContext,
+        processorType: "AudioWorklet",
+        startOnLoad: false,
+        positiveSpeechThreshold: 0.38,
+        negativeSpeechThreshold: 0.23,
+        minSpeechMs: 450,
+        redemptionMs: 700,
+        preSpeechPadMs: 250,
+        getStream: async () => new MediaStream([audioTrack]),
+        pauseStream: async () => undefined,
+        resumeStream: async () => new MediaStream([audioTrack]),
+        onSpeechRealStart: () => resolveSpeechTest(true),
+      });
+      voiceDetectorRef.current = detector;
+      await detector.start();
+      const speechTimeout = window.setTimeout(() => resolveSpeechTest(false), 15_000);
+      const speechDetected = await speechTest;
+      window.clearTimeout(speechTimeout);
+      await detector.destroy();
+      if (voiceDetectorRef.current === detector) voiceDetectorRef.current = null;
+      if (!speechDetected) throw new Error("No speech was detected. Check the selected microphone in your browser, then run the system check again and speak clearly.");
+
       setState("ready");
-      setMessage("Camera and microphone are ready. Keep this tab open until the interview starts.");
+      setMessage("Camera, microphone, and live speech detection are ready. Keep this tab open until the interview starts.");
       onReadyChange(true);
     } catch (error) {
       stopMedia();
@@ -272,19 +306,72 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<MonitorState>("connecting");
   const [message, setMessage] = useState("Starting identity monitoring…");
+  const [noiseWarning, setNoiseWarning] = useState("");
+  const [livenessPrompt, setLivenessPrompt] = useState("");
 
   useEffect(() => {
     let active = true;
     let captureTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let stream: MediaStream | undefined;
+    let audioContext: AudioContext | undefined;
+    let voiceDetector: { start: () => Promise<void>; destroy: () => Promise<void> } | undefined;
+    let noiseTimer: number | undefined;
+    let noiseClearTimer: number | undefined;
     let socket: WebSocket | undefined;
     let awaitingResult = false;
+    let challengeActive = false;
     let reconnectAttempt = 0;
+    let lastNoiseViolationAt = 0;
+    let silentInputSince = 0;
+    let speechActive = false;
+    let microphoneStartedAt = 0;
+    let roomFloorRms = 0;
+    let latestSpeechProbability = 0;
+    let maximumSpeechProbability = 0;
+    let processedSpeechFrames = 0;
+    let monitorDiagnosticsSent = false;
+    const roomFloorSamples: number[] = [];
+    const loudMediaEvidence: number[] = [];
+
+    const clearAudioWarningSoon = () => {
+      if (noiseClearTimer !== undefined) return;
+      noiseClearTimer = window.setTimeout(() => {
+        noiseClearTimer = undefined;
+        if (active && !speechActive) setNoiseWarning("");
+      }, 1_500);
+    };
+
+    const reportDetectedAudio = (detector: "speech_model" | "loud_media", details: Record<string, unknown> = {}) => {
+      if (!active) return;
+      setNoiseWarning("Speech or media audio detected. Stop talking and mute nearby devices.");
+      if (noiseClearTimer !== undefined) {
+        window.clearTimeout(noiseClearTimer);
+        noiseClearTimer = undefined;
+      }
+      const now = Date.now();
+      if (now - lastNoiseViolationAt < 15_000) return;
+      lastNoiseViolationAt = now;
+      void recordBrowserIntegrityEvent(interviewType, sessionId, token, "ambient_noise_detected", {
+        detector,
+        ...details,
+      }).then((result) => onViolationCount?.(result.violationCount)).catch(() => undefined);
+    };
+
+    const resumeMicrophoneMonitoring = () => {
+      if (audioContext?.state === "suspended") {
+        void audioContext.resume().then(() => setNoiseWarning("")).catch(() => undefined);
+      }
+    };
 
     const clearCaptureTimer = () => {
       if (captureTimer !== undefined) window.clearInterval(captureTimer);
       captureTimer = undefined;
+    };
+
+    const scheduleCaptures = () => {
+      clearCaptureTimer();
+      captureTimer = window.setInterval(capture, challengeActive ? 400 : 2_000);
     };
 
     const capture = () => {
@@ -322,19 +409,37 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
         setState("connecting");
         setMessage("Identity monitor connected. First check is running…");
         window.setTimeout(capture, 750);
-        clearCaptureTimer();
-        captureTimer = window.setInterval(capture, 20_000);
+        scheduleCaptures();
       });
       socket.addEventListener("message", (event) => {
         awaitingResult = false;
         const payload = safeJson(event.data);
         if (!payload) return;
         if (payload.success && payload.type === "verification") {
+          if (challengeActive) {
+            challengeActive = false;
+            scheduleCaptures();
+          }
           setState("verified");
-          setMessage("Identity verified");
+          setMessage("Identity verified. Keep your face visible.");
+          setLivenessPrompt("");
+        } else if (payload.success && payload.type === "liveness_required") {
+          if (!challengeActive) {
+            challengeActive = true;
+            scheduleCaptures();
+          }
+          setState("connecting");
+          const prompt = payload.message ?? "Perform the requested live action now.";
+          setMessage("Random live identity check in progress");
+          setLivenessPrompt(prompt);
         } else if (payload.type === "warning" || payload.success === false) {
+          if (challengeActive) {
+            challengeActive = false;
+            scheduleCaptures();
+          }
           setState("warning");
-          setMessage(payload.message ?? payload.error?.message ?? "Face could not be verified. Stay centered in the camera.");
+          setMessage(friendlyMonitorMessage(payload.message ?? payload.error?.message));
+          setLivenessPrompt("");
           if (typeof payload.data?.violationCount === "number") onViolationCount?.(payload.data.violationCount);
         }
       });
@@ -359,12 +464,154 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-          audio: false,
+          audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true },
         });
         if (!active) return;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+        }
+
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioContext = new AudioContext();
+          if (audioContext.state === "suspended") await audioContext.resume().catch(() => undefined);
+          const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.minDecibels = -90;
+          analyser.maxDecibels = -10;
+          analyser.smoothingTimeConstant = 0.55;
+          source.connect(analyser);
+          const samples = new Float32Array(analyser.fftSize);
+          const handleMicrophoneEnded = () => {
+            setNoiseWarning("Microphone disconnected. Reconnect it to continue monitoring.");
+          };
+          audioTrack.addEventListener("ended", handleMicrophoneEnded);
+          microphoneStartedAt = Date.now();
+
+          setNoiseWarning("Starting speech monitoring…");
+          void (async () => {
+            try {
+              const { MicVAD } = await import("@ricky0123/vad-web");
+              if (!active || !audioContext) return;
+              voiceDetector = await MicVAD.new({
+                model: "v5",
+                baseAssetPath: "/vad/",
+                onnxWASMBasePath: "/vad/",
+                audioContext,
+                processorType: "AudioWorklet",
+                startOnLoad: false,
+                positiveSpeechThreshold: 0.38,
+                negativeSpeechThreshold: 0.23,
+                minSpeechMs: 450,
+                redemptionMs: 700,
+                preSpeechPadMs: 250,
+                getStream: async () => new MediaStream([audioTrack]),
+                pauseStream: async () => undefined,
+                resumeStream: async () => new MediaStream([audioTrack]),
+                onFrameProcessed: (probabilities) => {
+                  latestSpeechProbability = probabilities.isSpeech;
+                  maximumSpeechProbability = Math.max(maximumSpeechProbability, probabilities.isSpeech);
+                  processedSpeechFrames += 1;
+                  if (!monitorDiagnosticsSent && processedSpeechFrames >= 100) {
+                    monitorDiagnosticsSent = true;
+                    const settings = audioTrack.getSettings();
+                    void recordBrowserIntegrityEvent(interviewType, sessionId, token, "microphone_monitor_ready", {
+                      detector: "silero_v5",
+                      processedFrames: processedSpeechFrames,
+                      maximumSpeechProbability: Number(maximumSpeechProbability.toFixed(4)),
+                      sampleRate: settings.sampleRate,
+                      channelCount: settings.channelCount,
+                      noiseSuppression: settings.noiseSuppression,
+                      autoGainControl: settings.autoGainControl,
+                    }, "info").catch(() => undefined);
+                  }
+                },
+                onSpeechStart: () => undefined,
+                onSpeechRealStart: () => {
+                  speechActive = true;
+                  reportDetectedAudio("speech_model", { speechProbability: Number(latestSpeechProbability.toFixed(4)) });
+                },
+                onSpeechEnd: (audio) => {
+                  speechActive = false;
+                  clearAudioWarningSoon();
+                  if (audio.length / 16_000 >= 1.2) {
+                    reportDetectedAudio("speech_model", { segmentDurationSeconds: Number((audio.length / 16_000).toFixed(2)) });
+                    clearAudioWarningSoon();
+                  }
+                },
+                onVADMisfire: () => {
+                  speechActive = false;
+                  clearAudioWarningSoon();
+                },
+              });
+              if (!active) {
+                await voiceDetector.destroy();
+                voiceDetector = undefined;
+                return;
+              }
+              await voiceDetector.start();
+              if (active) setNoiseWarning("");
+            } catch {
+              if (active) setNoiseWarning("Speech monitoring could not start. Refresh the interview before continuing.");
+            }
+          })();
+
+          noiseTimer = window.setInterval(() => {
+            if (!active) return;
+            if (audioContext?.state !== "running") {
+              setNoiseWarning("Microphone monitoring paused. Click anywhere on the interview to resume it.");
+              return;
+            }
+            analyser.getFloatTimeDomainData(samples);
+            const rms = Math.sqrt(samples.reduce((sum, value) => {
+              return sum + value * value;
+            }, 0) / samples.length);
+            const peak = samples.reduce((largest, value) => Math.max(largest, Math.abs(value)), 0);
+            const now = Date.now();
+
+            if (rms < 0.0005 && peak < 0.002) {
+              if (!silentInputSince) silentInputSince = now;
+              if (now - silentInputSince >= 4_000) {
+                setNoiseWarning("No microphone input is being received. Check that the correct microphone is selected and unmuted.");
+              }
+              return;
+            }
+            silentInputSince = 0;
+
+            // Let hardware gain settle, then use the median room level as an
+            // independent detector for music and other non-speech media.
+            if (now - microphoneStartedAt < 8_000) {
+              roomFloorSamples.push(rms);
+              return;
+            }
+            if (!roomFloorRms) roomFloorRms = percentile(roomFloorSamples.slice(-20), 0.5);
+
+            const loudMedia = rms >= Math.max(0.018, roomFloorRms * 2.1)
+              || peak >= Math.max(0.12, roomFloorRms * 7);
+            loudMediaEvidence.push(loudMedia ? 1 : 0);
+            if (loudMediaEvidence.length > 16) loudMediaEvidence.shift();
+            const loudFrames = loudMediaEvidence.reduce((sum, value) => sum + value, 0);
+            if (!speechActive && loudFrames >= 4) {
+              reportDetectedAudio("loud_media", {
+                rms: Number(rms.toFixed(4)),
+                peak: Number(peak.toFixed(4)),
+                roomFloorRms: Number(roomFloorRms.toFixed(4)),
+                evidenceFrames: loudFrames,
+              });
+            } else if (!speechActive && loudFrames === 0) {
+              clearAudioWarningSoon();
+            }
+
+            if (!speechActive && !loudMedia && rms < roomFloorRms * 1.4) {
+              roomFloorRms = roomFloorRms * 0.995 + rms * 0.005;
+            }
+
+            if (speechActive) {
+              reportDetectedAudio("speech_model");
+            }
+          }, 250);
         }
 
         connect();
@@ -382,25 +629,47 @@ export function InterviewFaceMonitor({ interviewType, sessionId, token, websocke
       connect();
     };
     window.addEventListener("online", handleOnline);
+    window.addEventListener("pointerdown", resumeMicrophoneMonitoring, { passive: true });
+    window.addEventListener("keydown", resumeMicrophoneMonitoring);
     void start();
     return () => {
       active = false;
       clearCaptureTimer();
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+      if (noiseTimer !== undefined) window.clearInterval(noiseTimer);
+      if (noiseClearTimer !== undefined) window.clearTimeout(noiseClearTimer);
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("pointerdown", resumeMicrophoneMonitoring);
+      window.removeEventListener("keydown", resumeMicrophoneMonitoring);
       socket?.close(1000, "Interview view closed");
       stream?.getTracks().forEach((track) => track.stop());
+      if (voiceDetector) {
+        void voiceDetector.destroy().finally(() => void audioContext?.close());
+      } else {
+        void audioContext?.close();
+      }
     };
   }, [interviewType, onViolationCount, sessionId, token, websocketBaseUrl]);
 
   const tone = state === "verified" ? "bg-emerald-500/15 text-emerald-300" : state === "warning" || state === "offline" ? "bg-amber-500/15 text-amber-200" : "bg-white/10 text-slate-200";
+  const microphoneAlert = Boolean(noiseWarning && !noiseWarning.startsWith("Calibrating"));
 
   return (
-    <div className="fixed bottom-3 right-3 z-40 w-48 overflow-hidden rounded-2xl border border-white/15 bg-slate-950 shadow-2xl sm:bottom-5 sm:right-5" aria-live="polite">
+    <div className={`fixed bottom-3 right-3 z-40 overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-[width] sm:bottom-5 sm:right-5 ${livenessPrompt ? "w-72 border-amber-300/70" : "w-48 border-white/15"}`} aria-live="polite">
       <video aria-label="Identity monitoring camera" className="aspect-video w-full object-cover [transform:scaleX(-1)]" muted playsInline ref={videoRef} />
+      {livenessPrompt ? (
+        <div className="border-b border-amber-300/30 bg-amber-400 px-4 py-3 text-sm font-bold leading-5 text-slate-950" role="alert" aria-live="assertive">
+          <div>{livenessPrompt}</div>
+          <div className="mt-1 text-xs font-semibold">Do this now while facing the camera. You have 20 seconds.</div>
+        </div>
+      ) : null}
       <div className={`flex items-start gap-2 px-3 py-2 text-[11px] leading-4 ${tone}`}>
         {state === "verified" ? <FiCheckCircle className="mt-0.5 shrink-0" aria-hidden /> : state === "connecting" ? <FiLoader className="mt-0.5 shrink-0 animate-spin" aria-hidden /> : <FiAlertTriangle className="mt-0.5 shrink-0" aria-hidden />}
         <span>{message}</span>
+      </div>
+      <div className={`flex items-center gap-2 border-t border-white/10 px-3 py-2 text-[11px] leading-4 ${microphoneAlert ? "bg-rose-500/20 text-rose-200" : "bg-slate-900 text-slate-300"}`}>
+        <FiMic className="shrink-0" aria-hidden />
+        <span>{noiseWarning || "Microphone monitoring active • keep the area quiet"}</span>
       </div>
     </div>
   );
@@ -423,6 +692,18 @@ function deviceErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "The device check could not be completed.";
 }
 
-function safeJson(value: unknown): { success?: boolean; type?: string; message?: string; error?: { message?: string }; data?: { violationCount?: number } } | null {
+function safeJson(value: unknown): { success?: boolean; type?: string; message?: string; error?: { message?: string }; data?: { violationCount?: number; livenessRequired?: boolean } } | null {
   try { return JSON.parse(String(value)); } catch { return null; }
+}
+
+function percentile(values: number[], fraction: number) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * fraction)))];
+}
+
+function friendlyMonitorMessage(value?: string) {
+  if (!value) return "Face could not be verified. Stay centered in the camera.";
+  if (/service is unavailable|connection reset|econnrefused|dns|internal server/i.test(value)) return "Live identity verification is reconnecting. Keep your face visible and remain on this screen.";
+  return value;
 }

@@ -40,7 +40,8 @@ export const recordBrowserIntegrityEvent = (
   token: string,
   eventType: string,
   details?: Record<string, unknown>,
-) => request<{ recorded: boolean }>(type, sessionId, token, "events", {
+  severity: "info" | "warning" | "critical" = "critical",
+) => request<{ recorded: boolean; violationCount: number }>(type, sessionId, token, "events", {
   method: "POST",
-  body: JSON.stringify({ eventType, severity: "critical", occurredAt: new Date().toISOString(), details }),
+  body: JSON.stringify({ eventType, severity, occurredAt: new Date().toISOString(), details }),
 });
